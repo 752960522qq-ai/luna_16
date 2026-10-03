@@ -32,11 +32,11 @@ function dispatch(action,silent=false){
 function select(k){if(!Object.prototype.hasOwnProperty.call(C,k))return;stopFire();aimTarget=null;selected=k;dispatch({type:'vehicle'},true);dispatch({type:'select',weapon:k},true);document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
 function startAI(seed){disconnect(false);audio.init();closeModal();engine=new Engine({mode:'ai',difficulty,seed});view=engine.snapshot(0);paused=false;lastLog=0;oldHp=100;selected='missile';resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficulty==='easy'?'新兵':'标准'}`;setScreen('battle');select('missile');updateHUD();}
 function returnMenu(){disconnect(false);engine=null;view=null;paused=false;resetInput();closeModal();setScreen('menu');}
-function resetInput(){stick.x=stick.y=0;keys.clear();joystickPointer=aimPointer=firePointer=null;drag=aimTarget=null;$('stickKnob').style.transform='';}
+function resetInput(){const captures=[['joystick',joystickPointer],['world',aimPointer],['fireButton',firePointer]];stick.x=stick.y=0;keys.clear();joystickPointer=aimPointer=firePointer=null;drag=aimTarget=null;$('stickKnob').style.transform='';for(const[id,pointer]of captures){if(pointer!==null)try{if($(id).hasPointerCapture(pointer))$(id).releasePointerCapture(pointer);}catch(_){}}}
 function currentPilot(){return view&&view.shots.find(s=>s.mine&&s.id===view.own.pilot);}
 function control(silent=true){if(!view||modalKind||paused&&!netRole||view.over)return;const throttle=clamp(-stick.y+(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),-1,1),steer=clamp(stick.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),-1,1);const a={type:'control',throttle,steer};if(aimTarget){a.yaw=aimTarget.yaw;a.pitch=aimTarget.pitch;aimTarget=null;}dispatch(a,silent);}
 function fire(){if(!view||modalKind||view.over)return;audio.init();control();const pilot=currentPilot();if(pilot){dispatch({type:'detonate'});}else if(selected==='mg'){dispatch({type:'mg',active:true},true);audio.play('mg');}else dispatch({type:'fire'});updateHUD();}
-function stopFire(e){if(e&&firePointer!==null&&e.pointerId!==undefined&&e.pointerId!==firePointer)return;firePointer=null;if(view&&(view.own.mg||selected==='mg'))dispatch({type:'mg',active:false},true);$('fireButton').classList.remove('firing');}
+function stopFire(e){if(e&&e.pointerId!==undefined&&e.pointerId!==firePointer)return;firePointer=null;if(view&&(view.own.mg||selected==='mg'))dispatch({type:'mg',active:false},true);$('fireButton').classList.remove('firing');}
 function result(){if(modalKind==='result'||!view)return;const outcome=view.outcome,title={win:'交火胜利',loss:'发射车损失',draw:'本局平局'}[outcome],s=view.own.stats,time=Math.round(Math.min(180,Math.max(0,view.t-3)));
  showModal('result',`<span class="eyebrow">AFTER ACTION / ${netRole?'DUEL':'SOLO'}</span><h3 class="result-heading ${outcome}">${title}</h3><p>${escape(view.reason)}</p><div class="result-grid"><div><small>造成伤害</small><b>${s.damage}<span>HP</span></b></div><div><small>剩余耐久</small><b>${view.own.hp}<span>HP</span></b></div><div><small>确认热源</small><b>${s.detections}<span>次</span></b></div><div><small>成功拦截</small><b>${s.intercepted}<span>次</span></b></div><div><small>装备发射</small><b>${s.launches}<span>次</span></b></div><div><small>交火时间</small><b>${time}<span>秒</span></b></div></div>${netRole?'':'<button id="again" class="btn">再次出战</button>'}<button id="backMenu" class="btn secondary">返回主菜单</button>`,{again:()=>startAI(),backMenu:returnMenu});audio.play(outcome==='win'?'lock':'hit');resetInput();
 }
@@ -70,7 +70,7 @@ function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();di
     if (notify && wasConnected) interrupted('对方已断开连接，本局结束。');
   }
   function interrupted(message) {
-    connected = false; engine = null; paused = false;
+    disconnect(false); engine = null; paused = false; resetInput();
     showModal('interrupted', `<span class="eyebrow">LINK LOST</span><h3>交火中断</h3><p>${escape(message)}</p><p>请重新创建或加入房间。</p><button id="interruptedBack" class="btn">返回主菜单</button>`, { interruptedBack:returnMenu });
   }
   function lanMenu() {
@@ -103,7 +103,7 @@ window.onNativeNetwork=function(event){
  if(!event||!event.type)return;
  if(event.type==='listening'&&netRole==='host'){
   const ips=(event.ips||[]).filter(a=>/^\d{1,3}(\.\d{1,3}){3}$/.test(a));showModal('waiting',`<span class="eyebrow">ROOM OPEN / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">房间码</small><div class="room-code">${escape(event.code)}</div><small class="room-note">连接地址（任选可达地址）</small>${ips.map(a=>`<div class="room-address">${escape(a)}</div>`).join('')||'<p class="connection-error">未找到地址，请连接 Wi-Fi 或开启热点后重试。</p>'}<div class="room-status">● 房间已开放</div><p>玩家 B 输入地址和房间码，连接后自动开始。双方须使用同一版本。</p><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{cancelWaiting:()=>{disconnect(false);lanMenu();}});
- }else if(event.type==='connected'){
+ }else if(event.type==='connected'&&netRole&&event.role===netRole&&modalKind==='waiting'&&!connected){
   connected=true;lastPeerAt=performance.now();seq=remoteSeq=0;oldHp=100;lastLog=0;paused=false;audio.init();resetInput();renderer.cameraKey=null;selected='missile';
   if(netRole==='host'){engine=new Engine({mode:'lan'});view=engine.snapshot(0);$('modeLabel').textContent='双人交火 / 玩家 A';closeModal();setScreen('battle');select('missile');sendNet({type:'state',view:engine.snapshot(1)});}
  }else if(event.type==='data'&&connected){
@@ -121,14 +121,14 @@ $('startAI').addEventListener('click',()=>startAI());$('openLAN').addEventListen
 document.querySelectorAll('[data-weapon]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.weapon)));
 $('returnVehicle').addEventListener('click',()=>{stopFire();resetInput();dispatch({type:'vehicle'});updateHUD();});
 $('takeUAV').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();dispatch({type:'pilot',id:u.id});updateHUD();}});
-$('fireButton').addEventListener('pointerdown',e=>{e.preventDefault();firePointer=e.pointerId;try{$('fireButton').setPointerCapture(e.pointerId);}catch(_){}fire();});
+$('fireButton').addEventListener('pointerdown',e=>{if(firePointer!==null||modalKind)return;e.preventDefault();firePointer=e.pointerId;try{$('fireButton').setPointerCapture(e.pointerId);}catch(_){}fire();});
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('fireButton').addEventListener(name,stopFire);
 function moveStick(e){const r=$('joystick').getBoundingClientRect(),radius=r.width*.34,dx=e.clientX-r.x-r.width/2,dy=e.clientY-r.y-r.height/2,len=Math.hypot(dx,dy),scale=len>radius?radius/len:1;stick.x=dx*scale/radius;stick.y=dy*scale/radius;if(Math.abs(stick.x)<.08)stick.x=0;if(Math.abs(stick.y)<.08)stick.y=0;$('stickKnob').style.transform=`translate(${stick.x*radius}px,${stick.y*radius}px)`;}
-$('joystick').addEventListener('pointerdown',e=>{if(modalKind)return;e.preventDefault();joystickPointer=e.pointerId;$('joystick').setPointerCapture(e.pointerId);moveStick(e);audio.init();});
+$('joystick').addEventListener('pointerdown',e=>{if(modalKind||joystickPointer!==null)return;e.preventDefault();joystickPointer=e.pointerId;$('joystick').setPointerCapture(e.pointerId);moveStick(e);audio.init();});
 $('joystick').addEventListener('pointermove',e=>{if(joystickPointer===e.pointerId)moveStick(e);});
 function releaseStick(e){if(joystickPointer!==e.pointerId)return;joystickPointer=null;stick.x=stick.y=0;$('stickKnob').style.transform='';control();}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('joystick').addEventListener(name,releaseStick);
-$('world').addEventListener('pointerdown',e=>{if(screen!=='battle'||modalKind||!view||view.over)return;e.preventDefault();aimPointer=e.pointerId;const a=currentPilot()||view.own.aim[selected];drag={x:e.clientX,y:e.clientY,yaw:a.yaw,pitch:a.pitch};$('world').setPointerCapture(e.pointerId);audio.init();});
+$('world').addEventListener('pointerdown',e=>{if(screen!=='battle'||modalKind||!view||view.over||aimPointer!==null)return;e.preventDefault();aimPointer=e.pointerId;const a=currentPilot()||view.own.aim[selected];drag={x:e.clientX,y:e.clientY,yaw:a.yaw,pitch:a.pitch};$('world').setPointerCapture(e.pointerId);audio.init();});
 $('world').addEventListener('pointermove',e=>{if(aimPointer!==e.pointerId||!drag)return;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006,pitch:drag.pitch-(e.clientY-drag.y)*.0045};});
 function releaseAim(e){if(aimPointer!==e.pointerId)return;control();aimPointer=null;drag=null;}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('world').addEventListener(name,releaseAim);
@@ -136,7 +136,7 @@ window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)ret
 window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());if(e.key===' ')stopFire();});
 window.showPause=showPause;
 window.onNativeBack=function(){if(modalKind==='interrupted'){returnMenu();return;}if(modalKind==='pause'){paused=false;closeModal();return;}if(screen==='battle'){if(view&&view.over)returnMenu();else showPause();}else if(modalKind){if(['waiting','join','interrupted'].includes(modalKind)){disconnect(false);lanMenu();}else closeModal();}else if(native&&native.finishApp)native.finishApp();};
-window.onNativePause=function(){stopFire();dispatch({type:'control',throttle:0,steer:0},true);resetInput();if(screen==='battle'&&view&&!view.over){if(netRole){disconnect(false);interrupted('设备切至后台，双人连接已结束。');}else showPause();}if(audio.ctx)audio.ctx.suspend().catch(()=>{});};
+window.onNativePause=function(){stopFire();dispatch({type:'control',throttle:0,steer:0},true);resetInput();if(netRole){if(view&&view.over)disconnect(false);else interrupted('设备切至后台，双人连接已结束。');}else if(screen==='battle'&&engine&&view&&!view.over)showPause();if(audio.ctx)audio.ctx.suspend().catch(()=>{});};
 window.onNativeResume=function(){lastFrame=performance.now();};
 window.addEventListener('blur',()=>{stopFire();dispatch({type:'control',throttle:0,steer:0},true);resetInput();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)window.onNativePause();else window.onNativeResume();});
