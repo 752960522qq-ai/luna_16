@@ -1,8 +1,7 @@
 /* HTTPS relay. Each client owns a private token; only the guest's filtered view is relayed. */
-const VERSION=4,WAIT=600000,DEAD=15000,ACTIVE=120000,MAX=81920;
-const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const VERSION=5,WAIT=600000,DEAD=25000,ACTIVE=120000,MAX=81920;
 function token(bytes=24){return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),x=>x.toString(16).padStart(2,'0')).join('');}
-function code(){return Array.from(crypto.getRandomValues(new Uint8Array(8)),x=>alphabet[x%alphabet.length]).join('');}
+function code(){let n;do{n=crypto.getRandomValues(new Uint16Array(1))[0];}while(n>=60000);return String(n%10000).padStart(4,'0');}
 async function hash(value){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),x=>x.toString(16).padStart(2,'0')).join('');}
 const result=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','X-Content-Type-Options':'nosniff'}});
 const statement=(db,sql,args=[])=>db.prepare(sql).bind(...args);
@@ -18,13 +17,13 @@ export async function rooms(request,env){
  try{
   if(path==='/api/rooms/create'){
    const key=token(),secret=await hash(key);await statement(db,'DELETE FROM rooms WHERE expires_at < ?',[now]).run();
-   for(let i=0;i<4;i++){
+   for(let i=0;i<40;i++){
     const id=code();const r=await statement(db,'INSERT OR IGNORE INTO rooms(code,host_key,status,created_at,last_host,expires_at) VALUES(?,?,?,?,?,?)',[id,secret,'waiting',now,now,now+WAIT]).run();
     if(r.meta.changes)return result({code:id,token:key,role:'host',version:VERSION});
    }
    return result({error:'房间繁忙，请重新创建'},503);
   }
-  if(typeof body.code!=='string'||!new RegExp('^['+alphabet+']{8}$').test(body.code))return result({error:'请输入8位房间码'},400);
+  if(typeof body.code!=='string'||!/^\d{4}$/.test(body.code))return result({error:'请输入4位数字房间码'},400);
   if(path==='/api/rooms/join'){
    const key=token(),secret=await hash(key),room=await statement(db,'UPDATE rooms SET guest_key=?,last_guest=?,status=\'joined\',expires_at=? WHERE code=? AND status=\'waiting\' AND guest_key IS NULL AND expires_at>? AND last_host>? RETURNING code',[secret,now,now+ACTIVE,body.code,now,now-DEAD]).first();
    if(!room)return result({error:'房间不存在、已过期或已有玩家'},404);

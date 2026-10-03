@@ -1,17 +1,18 @@
 const assert=require('node:assert/strict');const{open}=require('./browser-helpers.cjs');
 (async()=>{
- const relay=await import('./room-server.mjs'),api=await relay.openRelay(),{browser,server,url}=await open(),errors=[];let duplicate=false;
+ const relay=await import('./room-server.mjs'),api=await relay.openRelay(),{browser,server,url}=await open(),errors=[];let duplicate=false;const nativeCalls=[];
  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),desktop=await browser.newContext({viewport:{width:1100,height:850}}),a=await mobile.newPage(),b=await desktop.newPage();
  try{
   for(const c of[mobile,desktop])await c.route('**/api/rooms/**',async route=>{
-   const q=route.request();let body=q.postData();if(body){const data=JSON.parse(body);if(!duplicate&&data.commands?.some(p=>p.action.type==='fire')){data.commands.push(data.commands.find(p=>p.action.type==='fire'));body=JSON.stringify(data);duplicate=true;}}
+   const q=route.request();assert.notEqual(q.method(),'OPTIONS');assert.ok(q.headers()['content-type'].startsWith('text/plain'));let body=q.postData();if(body){const data=JSON.parse(body);if(!duplicate&&data.commands?.some(p=>p.action.type==='fire')){data.commands.push(data.commands.find(p=>p.action.type==='fire'));body=JSON.stringify(data);duplicate=true;}}
    await new Promise(r=>setTimeout(r,70));const response=await fetch(api.url+new URL(q.url()).pathname,{method:q.method(),headers:{'Content-Type':'application/json'},...(body?{body}:{})});await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:await response.text()});
   });
-  // A uses the Android bridge surface; remote play must use HTTPS, without calling LAN host/join.
-  await a.addInitScript(()=>{window.lanCalls=0;window.Native={host:()=>lanCalls++,join:()=>lanCalls++,leave:()=>{},vibrate:()=>{}};});
+  // A uses the asynchronous native network bridge; B exercises simple CORS fallback.
+  await a.exposeFunction('nativeRoomRequest',async(id,path,body)=>{nativeCalls.push(path);await new Promise(r=>setTimeout(r,70));const response=await fetch(api.url+'/api/rooms/'+path,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body});return{id,status:response.status,body:await response.text(),error:''};});
+  await a.addInitScript(()=>{window.lanCalls=0;const canceled=new Set();window.Native={host:()=>lanCalls++,join:()=>lanCalls++,leave:()=>{},vibrate:()=>{},cancelRemoteRequest:id=>canceled.add(id),remoteRequest:(id,path,body)=>{nativeRoomRequest(id,path,body).then(r=>{if(!canceled.has(id))onNativeRemoteResponse(r);});}};});
   for(const page of[a,b]){page.on('pageerror',e=>errors.push(e.message));await page.goto(url);await page.waitForFunction(()=>window.GameDebug&&GameDebug.renderer.modelsReady);}
-  await a.locator('#openLAN').click();await a.locator('#onlineHost').click();await a.waitForSelector('.room-code');const code=await a.locator('.room-code').textContent();assert.equal(code.length,8);
-  await b.locator('#openLAN').click();await b.locator('#onlineJoin').click();await b.locator('#remoteCode').fill('ABC');await b.locator('#connectRemote').click();assert.ok((await b.locator('#remoteError').textContent()).includes('8位'));
+  await a.locator('#openLAN').click();await a.locator('#onlineHost').click();await a.waitForSelector('.room-code');const code=await a.locator('.room-code').textContent();assert.equal(code.length,4);
+  await b.locator('#openLAN').click();await b.locator('#onlineJoin').click();await b.locator('#remoteCode').fill('ABC');await b.locator('#connectRemote').click();assert.ok((await b.locator('#remoteError').textContent()).includes('4位'));
   await b.locator('#remoteCode').fill(code.toLowerCase());await b.locator('#connectRemote').click();for(const page of[a,b])await page.waitForFunction(()=>GameDebug.view?.started&&GameDebug.transport==='online');
   assert.equal(await a.evaluate(()=>lanCalls),0);assert.equal(await b.evaluate(()=>GameDebug.engine),null);assert.equal(await b.evaluate(()=>GameDebug.view.enemy),null);
   await b.keyboard.down('w');await a.waitForFunction(()=>GameDebug.engine.players[1].speed>3);await b.keyboard.up('w');await a.waitForFunction(()=>GameDebug.engine.players[1].speed<1);
@@ -21,6 +22,6 @@ const assert=require('node:assert/strict');const{open}=require('./browser-helper
   await b.locator('#uavOrbit').click();await b.waitForFunction(()=>GameDebug.view.own.pilot!==null);assert.ok((await b.locator('#modeLabel').textContent()).includes('ms'));
   await a.evaluate(()=>onNativePause());await a.waitForSelector('#interruptedBack');await b.waitForSelector('#interruptedBack');await a.locator('#interruptedBack').click();await b.locator('#interruptedBack').click();
   await a.locator('#openLAN').click();await a.locator('#onlineHost').click();await a.waitForSelector('.room-code');const canceled=await a.locator('.room-code').textContent();await a.locator('#cancelWaiting').click();await b.locator('#openLAN').click();await b.locator('#onlineJoin').click();await b.locator('#remoteCode').fill(canceled);await b.locator('#connectRemote').click();await b.waitForSelector('#interruptedBack');assert.ok((await b.locator('#modalCard').textContent()).includes('不存在'));
-  assert.deepEqual(errors,[]);console.log('PASS remote mobile/desktop clients over HTTP/SQLite with latency: room code, input validation, guest drive, artillery mode, deduplicated fire/audio, cooldown feedback, UAV orbit, background closure and canceled rooms');
+  assert.ok(nativeCalls.includes('create')&&nativeCalls.includes('exchange')&&nativeCalls.includes('leave'));assert.deepEqual(errors,[]);console.log('PASS native bridge/simple-CORS clients over HTTP/SQLite with latency: four-digit code, input validation, guest drive, artillery mode, deduplicated fire/audio, cooldown feedback, UAV orbit, background closure and canceled rooms');
  }finally{await browser.close();server.close();await new Promise(r=>api.server.close(r));api.raw.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

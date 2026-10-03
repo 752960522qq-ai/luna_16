@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
     private static final String REMOTE_API = "https://blindfire-arena.expert-eagle-6942.chatgpt.site/api/rooms/";
     private static final int PORT = 42316;
     private WebView game;
+    private RemoteHttp remoteHttp;
     private volatile LanLink link;
     private volatile int networkGeneration;
     private volatile boolean foreground;
@@ -34,6 +35,12 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setAllowUniversalAccessFromFileURLs(false);
         s.setAllowFileAccessFromFileURLs(false); s.setMediaPlaybackRequiresUserGesture(false);
         game.setWebChromeClient(new WebChromeClient());
+        remoteHttp = new RemoteHttp(REMOTE_API, s.getUserAgentString(), new RemoteHttp.Listener() {
+            public void response(String id,int status,String body,String error) {
+                final JSONObject e=new JSONObject();put(e,"id",id);put(e,"status",status);put(e,"body",body);put(e,"error",error);
+                runOnUiThread(new Runnable(){public void run(){if(game!=null)game.evaluateJavascript("window.onNativeRemoteResponse && window.onNativeRemoteResponse("+e.toString()+")",null);}});
+            }
+        });
         game.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
@@ -87,6 +94,8 @@ public class MainActivity extends Activity {
         return a;
     }
     public final class Bridge {
+        @JavascriptInterface public void remoteRequest(String id,String path,String body,int timeout) { if(remoteHttp!=null)remoteHttp.request(id,path,body,timeout); }
+        @JavascriptInterface public void cancelRemoteRequest(String id) { if(remoteHttp!=null)remoteHttp.cancel(id); }
         @JavascriptInterface public void host() {
             synchronized(MainActivity.this) {
                 if(!foreground)return;
@@ -118,6 +127,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         closeNetwork();
+        if(remoteHttp!=null){remoteHttp.close();remoteHttp=null;}
         if(game!=null){game.removeJavascriptInterface("Native");game.stopLoading();game.destroy();game=null;}
         super.onDestroy();
     }

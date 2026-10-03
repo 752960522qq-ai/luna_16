@@ -72,8 +72,9 @@ export class Renderer{
       this.scene.add(new THREE.HemisphereLight('#ddeef1','#484535',2.1));const sun=new THREE.DirectionalLight('#fff0d2',2.3);sun.position.set(-240,520,-250);this.scene.add(sun);
       this.createLandscape();this.ownTruck=truck();this.enemyTruck=truck(true);this.scene.add(this.ownTruck,this.enemyTruck);this.enemyTruck.visible=false;
       this.modelsPromise=this.loadVehicles().catch(e=>{this.modelError=String(e);console.error('Vehicle model unavailable',e);const panel=document.getElementById('graphicsError');panel.querySelector('h3').textContent='车辆模型载入失败';panel.querySelector('p').textContent='请重新打开游戏后重试。';panel.classList.remove('hidden');});
-      this.arc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:'#d3ffe6',dashSize:7,gapSize:4,transparent:true,opacity:.9}));this.scene.add(this.arc);
-      this.hitRing=new THREE.Mesh(new THREE.RingGeometry(6,7.5,32),new THREE.MeshBasicMaterial({color:'#d3ffe6',side:THREE.DoubleSide,transparent:true,opacity:.9}));this.hitRing.rotation.x=-Math.PI/2;this.scene.add(this.hitRing);
+      this.arc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:'#ffe58a',dashSize:7,gapSize:4,transparent:true,opacity:1,depthTest:false,depthWrite:false}));this.arc.renderOrder=11;this.scene.add(this.arc);
+      this.hitRing=new THREE.Mesh(new THREE.RingGeometry(10,13,48),new THREE.MeshBasicMaterial({color:'#ffdf62',side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));this.hitRing.rotation.x=-Math.PI/2;this.hitRing.renderOrder=12;
+      for(const [w,h]of[[38,1.8],[1.8,38]]){const cross=new THREE.Mesh(new THREE.PlaneGeometry(w,h),this.hitRing.material);cross.renderOrder=12;this.hitRing.add(cross);}this.scene.add(this.hitRing);
       this.enemyMarker=new THREE.Group();const ring=new THREE.Mesh(new THREE.RingGeometry(10,11.2,32),new THREE.MeshBasicMaterial({color:'#ffad7f',side:THREE.DoubleSide,depthTest:false,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=10;this.enemyMarker.add(ring);const pin=new THREE.Mesh(new THREE.OctahedronGeometry(2.2),new THREE.MeshBasicMaterial({color:'#ffad7f',depthTest:false,depthWrite:false}));pin.position.y=21;pin.renderOrder=10;this.enemyMarker.add(pin);this.scene.add(this.enemyMarker);
       this.ready=true;this.resize();canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.ready=false;document.getElementById('graphicsError').classList.remove('hidden');});canvas.addEventListener('webglcontextrestored',()=>location.reload());
     }catch(e){console.error('3D renderer unavailable',e);document.getElementById('graphicsError').classList.remove('hidden');}
@@ -132,7 +133,19 @@ export class Renderer{
   }
   updateReticle(p,pilot){const a=pilot||p.aim[p.selected],d=B.direction(a.yaw,a.pitch),m=pilot||B.muzzle(p,p.selected),q=new THREE.Vector3(m.x+d.x*300,m.y+d.y*300,m.z+d.z*300).project(this.camera),el=document.getElementById('reticle');el.style.left=`${B.clamp((q.x*.5+.5)*100,5,95)}%`;el.style.top=`${B.clamp((-q.y*.5+.5)*100,15,72)}%`;
     el.classList.toggle('hidden',!pilot&&p.selected==='sam');
-    if(p.selected==='artillery'&&!pilot&&this.hitRing.visible){const v=this.hitRing.position.clone().project(this.camera),impact=document.getElementById('impactLabel'),x=(v.x*.5+.5)*innerWidth,y=(-v.y*.5+.5)*innerHeight,r=document.getElementById('ballisticPanel').getBoundingClientRect();const covered=x>r.left-45&&x<r.right+45&&y+14>r.top&&y<r.bottom;impact.classList.toggle('hidden',covered||v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1);impact.style.left=`${(v.x*.5+.5)*100}%`;impact.style.top=`${(-v.y*.5+.5)*100}%`;}else document.getElementById('impactLabel').classList.add('hidden');
+    const impact=document.getElementById('impactLabel');
+    if(p.selected==='artillery'&&!pilot&&this.lastArc){
+      const arc=this.lastArc;impact.classList.remove('hidden');impact.classList.toggle('outside',!arc.hit);
+      if(!arc.hit){impact.textContent='落点在战区外 · 调整方向';impact.style.left='50%';impact.style.top='46%';}
+      else{
+        const v=this.hitRing.position.clone().project(this.camera),x=(v.x*.5+.5)*innerWidth,y=(-v.y*.5+.5)*innerHeight;
+        const panel=document.getElementById('ballisticPanel').getBoundingClientRect(),width=impact.offsetWidth||146;let left=B.clamp(x,width/2+16,innerWidth-width/2-16),top=B.clamp(y,innerHeight*.32,innerHeight*.60);
+        if(left+width/2>panel.left&&left-width/2<panel.right&&top+65>panel.top&&top-15<panel.bottom)left=width/2+16;
+        const edge=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1||Math.abs(left-x)>40||Math.abs(top-y)>45;impact.classList.toggle('offscreen',edge);
+        const arrows=['▶','↘','▼','↙','◀','↖','▲','↗'],arrow=arrows[(Math.round(Math.atan2(y-top,x-left)*4/Math.PI)+8)%8];
+        impact.innerHTML=`<i>${edge?arrow:'⌖'}</i><b>预计落点 ${arc.range.toFixed(0)}m</b><small>${edge?'屏外 · ':''}${arc.time.toFixed(1)}秒着地</small>`;impact.style.left=`${left}px`;impact.style.top=`${top}px`;
+      }
+    }else impact.classList.add('hidden');
   }
   drawScope(p,arc){const panel=document.getElementById('ballisticPanel');panel.classList.toggle('hidden',!arc);if(!arc)return;panel.querySelector('span').textContent=p.artilleryMode==='direct'?'平射弹道':'曲射弹道';const canvas=document.getElementById('ballisticScope'),c=canvas.getContext('2d'),start=arc.points[0],range=B.dist(start,arc.points[arc.points.length-1])||1,maxY=Math.max(...arc.points.map(q=>q.y))-start.y+20;c.clearRect(0,0,240,116);c.strokeStyle='#739783';c.lineWidth=1;c.beginPath();c.moveTo(12,94);c.lineTo(228,94);c.stroke();c.strokeStyle='#c7ffd9';c.lineWidth=2;c.beginPath();arc.points.forEach((q,i)=>{const x=12+B.dist(start,q)/range*216,y=90-(q.y-start.y)/maxY*73;if(i)c.lineTo(x,y);else c.moveTo(x,y);});c.stroke();c.font='16px monospace';c.fillStyle='#bdd5b7';c.fillText(arc.range===null?'OUT':`${arc.range.toFixed(0)} m / ${arc.time.toFixed(1)} s`,12,112);}
   drawMini(v){const c=this.miniCtx,w=228,h=228,sc=200/B.W,own=v.own;c.clearRect(0,0,w,h);c.save();c.fillStyle='rgba(13,30,28,.9)';c.fillRect(0,0,w,h);c.beginPath();c.rect(14,14,200,200);c.clip();const map=q=>({x:14+q.x*sc,y:14+q.z*sc});this.mapPoint=map;c.strokeStyle='#436052';c.lineWidth=1;
@@ -144,6 +157,7 @@ export class Renderer{
     for(const tr of v.trails){c.strokeStyle=tr.mine?'#a9cdbd':'#e8d4b2';c.lineWidth=1;c.beginPath();tr.points.forEach((p,i)=>{const q=map(p);if(i)c.lineTo(q.x,q.y);else c.moveTo(q.x,q.y);});c.stroke();}
     if(v.enemy){const q=map(v.enemy);c.strokeStyle=v.enemy.retained?'#ae9978':'#ffb185';c.lineWidth=2;c.beginPath();c.arc(q.x,q.y,6,0,Math.PI*2);c.moveTo(q.x-9,q.y);c.lineTo(q.x+9,q.y);c.moveTo(q.x,q.y-9);c.lineTo(q.x,q.y+9);c.stroke();}
     for(const s of v.shots.filter(s=>s.kind!=='bullet')){const q=map(s);c.fillStyle=s.mine?'#d0ffe0':s.retained?'#ae9978':'#ffb185';c.beginPath();c.arc(q.x,q.y,s.kind==='uav'?3.5:2.5,0,7);c.fill();}
+    if(this.lastArc&&this.lastArc.hit){const q=map(this.lastArc.hit);c.fillStyle='#ffdf62';c.strokeStyle='#142720';c.lineWidth=2;c.beginPath();c.arc(q.x,q.y,6,0,Math.PI*2);c.fill();c.stroke();c.strokeStyle='#ffe991';c.lineWidth=2;c.beginPath();c.moveTo(q.x-10,q.y);c.lineTo(q.x+10,q.y);c.moveTo(q.x,q.y-10);c.lineTo(q.x,q.y+10);c.stroke();this.miniImpact={x:q.x,y:q.y,range:this.lastArc.range};}else this.miniImpact=null;
     const q=map(own);c.save();c.translate(q.x,q.y);c.rotate(own.yaw);c.fillStyle='#d0ffe0';c.beginPath();c.moveTo(0,-8);c.lineTo(-5,6);c.lineTo(0,3);c.lineTo(5,6);c.closePath();c.fill();c.restore();c.restore();c.strokeStyle='#799185';c.lineWidth=2;c.strokeRect(13,13,202,202);c.font='13px monospace';c.fillStyle='#c6d8c7';c.textAlign='center';c.fillText('N',w/2,12);
   }
   disposeGroup(g){g.traverse(m=>{if(m.geometry)m.geometry.dispose();});}

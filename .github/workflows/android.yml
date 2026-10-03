@@ -22,19 +22,22 @@ jobs:
         with:
           node-version: '24'
       - name: Remote room checks
-        run: node tests/remote-server.test.mjs
+        run: |
+          node tests/remote-server.test.mjs
+          node tests/web-retirement.test.mjs
       - name: Rules checks
         run: node tests/engine.test.js
       - name: Model checks
         run: python3 tests/models.test.py
-      - name: LAN transport checks
+      - name: Native LAN and remote transport checks
         run: |
-          javac -encoding UTF-8 -d /tmp/blindfire-tests app/src/main/java/com/luna/blindfire/LanLink.java tests/LanLinkTest.java
+          javac -encoding UTF-8 -d /tmp/blindfire-tests app/src/main/java/com/luna/blindfire/LanLink.java app/src/main/java/com/luna/blindfire/RemoteHttp.java tests/LanLinkTest.java tests/RemoteHttpTest.java
           java -cp /tmp/blindfire-tests LanLinkTest
+          node tests/native-remote.test.mjs
       - name: Build debug APK
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.5-remote-multiplayer-debug-apk
+          name: blindfire-v0.6-native-remote-hard-ai-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30

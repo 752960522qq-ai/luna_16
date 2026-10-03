@@ -4,12 +4,13 @@ import { RemoteLink } from './online.js';
 const $=id=>document.getElementById(id),{Engine,C,ballistic,clamp,terrain}=window.Blindfire;
 const renderer=new Renderer($('world'),$('mini'));
 const native=window.Native||null,isTest=new URLSearchParams(location.search).has('test');
+const difficultyNames={easy:'新兵',standard:'标准',hard:'困难'};
 let engine=null,view=null,screen='menu',selected='missile',paused=false,difficulty='standard',netRole=null,connected=false,transport=null,remote=null;
 let lastFrame=performance.now(),lastSend=0,lastHud=0,lastInput=0,lastPeerAt=0,lastLog=0,oldHp=100,toastUntil=0,modalKind=null,seq=0,remoteSeq=0,commandCount=0,commandWindow=0;
 let joystickPointer=null,aimPointer=null,firePointer=null,drag=null,aimTarget=null,damageUntil=0;
 const stick={x:0,y:0},keys=new Set();
 const names={uav:'无人机',missile:'巡航导弹',artillery:'火炮',sam:'防空导弹',mg:'高射机枪'};
-try{difficulty=localStorage.getItem('bf-difficulty')||'standard';}catch(_){}
+try{difficulty=localStorage.getItem('bf-difficulty')||'standard';if(!difficultyNames[difficulty])difficulty='standard';}catch(_){}
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const audio=new GameAudio();
 try{audio.enabled=localStorage.getItem('bf-sound')!=='off';}catch(_){}
@@ -29,7 +30,7 @@ function dispatch(action,silent=false){
  return r;
 }
 function select(k){if(!Object.prototype.hasOwnProperty.call(C,k))return;stopFire();aimTarget=null;selected=k;dispatch({type:'vehicle'},true);dispatch({type:'select',weapon:k},true);document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
-function startAI(seed){disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',difficulty,seed});view=engine.snapshot(0);paused=false;lastLog=0;oldHp=100;selected='missile';resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficulty==='easy'?'新兵':'标准'}`;setScreen('battle');select('missile');updateHUD();}
+function startAI(seed){disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',difficulty,seed});view=engine.snapshot(0);paused=false;lastLog=0;oldHp=100;selected='missile';resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficultyNames[difficulty]}`;setScreen('battle');select('missile');updateHUD();}
 function returnMenu(){disconnect(false);engine=null;view=null;paused=false;resetInput();audio.reset();closeModal();setScreen('menu');}
 function resetInput(){const captures=[['joystick',joystickPointer],['world',aimPointer],['fireButton',firePointer]];stick.x=stick.y=0;keys.clear();joystickPointer=aimPointer=firePointer=null;drag=aimTarget=null;$('stickKnob').style.transform='';for(const[id,pointer]of captures){if(pointer!==null)try{if($(id).hasPointerCapture(pointer))$(id).releasePointerCapture(pointer);}catch(_){}}}
 function currentPilot(){return view&&view.shots.find(s=>s.mine&&s.id===view.own.pilot);}
@@ -65,14 +66,15 @@ function guide(backToPause=false){showModal('guide',`
  <ol class="guide-list">
  <li><b>2km × 2km 的3D战场。</b>左摇杆驾驶，拖动画面瞄准。默认是车辆第三人称追尾视角。车体两侧小蓝块标记我方，小红块标记敌方。停车后才能发射。</li>
  <li><b>巡航导弹与无人机手动飞行。</b>发射后切换追尾视角，摇杆上下调整俯仰、左右转向，也可拖动调整航向。可随时返回车辆，再次接管无人机。</li>
- <li><b>火炮可切换曲射与平射。</b>点击弹道面板的切换按钮。曲射用于远距离和高弹道攻击，最大射程约1.7km；平射用于较低弹道的直接瞄准。两种模式都显示实际抛物线和预计落点，装填同为5秒。</li>
+ <li><b>火炮可切换曲射与平射。</b>点击弹道面板的切换按钮。曲射用于远距离和高弹道攻击，最大射程约1km；平射用于较低弹道的直接瞄准。两种模式都显示实际抛物线、醒目的预计落点和小地图落点标记。炮弹无定时引信，撞击地面或建筑才爆炸，装填同为5秒。</li>
  <li><b>无人机可以50米盘旋待机。</b>点击“50m盘旋”切回车辆，无人机自动绕半径50米的圆飞行并继续侦察。点击“手动飞行”即可重新接管。40秒总续航持续消耗，切换模式不会重置能量。</li>
  <li><b>三种单位共享300m侦察。</b>车辆、巡航导弹、无人机按距离发现敌方，不需要朝向或手动锁定。目标脱离全部我方侦察范围后，3D画面和小地图保留最后位置5秒，然后同时消失。</li>
  <li><b>防空导弹自动锁定。</b>发射即自动追踪300米内的空中目标，优先巡航导弹，保持车辆视角。装填25秒，无目标时不消耗装填。炮弹不可拦截。</li>
  <li><b>机枪需要手动瞄准。</b>按住开火连续射击，无冷却。无人机耐久27、巡航导弹耐久18，每发机枪空中伤害9。白色尾迹每段保留8秒。</li>
+ <li><b>训练新增困难 AI。</b>更快判断弹道线索、分区侦察、预测已发现目标的移动，开火后转移，并用自动防空导弹和手动机枪保护车辆。困难 AI 的血量、伤害、装填、300m侦察与5秒情报规则与玩家相同。</li>
  <li><b>车辆和武器具有独立音效。</b>引擎随车速变化，发射、机枪开火、命中、爆炸和无人机旋翼各有声音。可在作战菜单开关声音。</li>
  <li><b>100 HP，限时3分钟。</b>导弹直击80、近炸45–60；火炮直击40、范围10–20；无人机贴近自爆30。没有诱饵。绿色圆圈是侦察范围，蓝色虚线小圆是无人机盘旋范围。</li>
- </ol><div class="hint-box">装填：无人机10秒 · 导弹22秒 · 火炮5秒 · 防空弹25秒<br>远程模式支持 APK 与网页互通，同网模式使用 APK。双方请使用v0.5。<br>键盘：WASD 驾驶 / 飞行 · 1–5 切换装备 · 空格开火 · F 返回车辆</div>
+ </ol><div class="hint-box">装填：无人机10秒 · 导弹22秒 · 火炮5秒 · 防空弹25秒<br>远程模式使用4位数字房间码；同网模式使用6位码。双方请使用v0.6。<br>键盘：WASD 驾驶 / 飞行 · 1–5 切换装备 · 空格开火 · F 返回车辆</div>
  <button id="guideClose" class="btn">准备行动</button>`,{guideClose:()=>{if(backToPause)showPause();else closeModal();}});}
 function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();dispatch({type:'control',throttle:0,steer:0},true);resetInput();if(!netRole)paused=true;
  showModal('pause',`<span class="eyebrow">TACTICAL PAUSE</span><h3>作战菜单</h3><p>${netRole?'双人对局仍在继续，尽快返回战场。':'训练已暂停。'}</p><button id="resume" class="btn">继续交火</button><button id="pauseGuide" class="btn secondary">作战指南</button><button id="toggleSound" class="btn secondary">声音：${audio.enabled?'开启':'关闭'}</button><button id="quitRound" class="btn danger">${netRole?'离开双人对局':'结束训练'}</button>`,{resume:()=>{paused=false;audio.init();closeModal();lastFrame=performance.now();},pauseGuide:()=>guide(true),toggleSound:()=>{audio.enabled=!audio.enabled;try{localStorage.setItem('bf-sound',audio.enabled?'on':'off');}catch(_){}soundUI();showPause();},quitRound:returnMenu});
@@ -88,7 +90,7 @@ function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();di
     showModal('interrupted', `<span class="eyebrow">LINK LOST</span><h3>交火中断</h3><p>${escape(message)}</p><p>请重新创建或加入房间。</p><button id="interruptedBack" class="btn">返回主菜单</button>`, { interruptedBack:returnMenu });
   }
   function lanMenu() {
-    showModal('lan', `<span class="eyebrow">DUEL / A × B</span><h3>双人交火</h3><p>创建远程房间，把8位房间码发给另一位玩家。手机与网页可以互相加入，无需同一 Wi-Fi。</p><button id="onlineHost" class="btn">创建远程房间 · 玩家 A</button><button id="onlineJoin" class="btn secondary">加入远程房间 · 玩家 B</button><div class="hint-box">远程对战需要联网，双方保持游戏在前台。连接断开后重新创建房间。</div><div class="lan-options"><button id="hostRoom" class="btn secondary">同网创建</button><button id="joinRoom" class="btn secondary">同网加入</button></div><small class="room-note">同网模式使用 APK，连接同一 Wi-Fi / 热点。</small><button id="lanBack" class="btn secondary">返回</button>`, {onlineHost:onlineHost,onlineJoin:onlineJoin,hostRoom:hostRoom,joinRoom:joinRoom,lanBack:closeModal});
+    showModal('lan', `<span class="eyebrow">DUEL / A × B</span><h3>双人交火</h3><p>创建远程房间，把4位数字房间码发给另一位玩家。两台安卓手机无需同一 Wi-Fi。</p><button id="onlineHost" class="btn">创建远程房间 · 玩家 A</button><button id="onlineJoin" class="btn secondary">加入远程房间 · 玩家 B</button><div class="hint-box">远程对战需要联网，双方保持游戏在前台。连接断开后重新创建房间。</div><div class="lan-options"><button id="hostRoom" class="btn secondary">同网创建</button><button id="joinRoom" class="btn secondary">同网加入</button></div><small class="room-note">同网模式使用 APK，连接同一 Wi-Fi / 热点。</small><button id="lanBack" class="btn secondary">返回</button>`, {onlineHost:onlineHost,onlineJoin:onlineJoin,hostRoom:hostRoom,joinRoom:joinRoom,lanBack:closeModal});
   }
   function openRemote(role){
     disconnect(false);transport='online';netRole=role;audio.init();
@@ -97,11 +99,11 @@ function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();di
   }
   function onlineHost(){openRemote('host').host();}
   function onlineJoin(){
-    showModal('join',`<span class="eyebrow">REMOTE / PLAYER B</span><h3>加入远程房间</h3><div class="field"><label for="remoteCode">8位房间码</label><input id="remoteCode" placeholder="例如 8KMN2PQR" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false"></div><p id="remoteError" class="connection-error"></p><button id="connectRemote" class="btn">连接并出战</button><button id="remoteBack" class="btn secondary">返回</button>`,{connectRemote:()=>{const code=$('remoteCode').value.trim().toUpperCase();if(!/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(code)){$('remoteError').textContent='请输入完整的8位房间码';return;}$('remoteCode').blur();openRemote('guest').join(code);},remoteBack:lanMenu});
+    showModal('join',`<span class="eyebrow">REMOTE / PLAYER B</span><h3>加入远程房间</h3><div class="field"><label for="remoteCode">4位数字房间码</label><input id="remoteCode" placeholder="例如 0428" maxlength="4" inputmode="numeric" autocomplete="off" spellcheck="false"></div><p id="remoteError" class="connection-error"></p><button id="connectRemote" class="btn">连接并出战</button><button id="remoteBack" class="btn secondary">返回</button>`,{connectRemote:()=>{const code=$('remoteCode').value.trim().toUpperCase();if(!/^\d{4}$/.test(code)){$('remoteError').textContent='请输入完整的4位数字房间码';return;}$('remoteCode').blur();openRemote('guest').join(code);},remoteBack:lanMenu});
   }
   function needNative() {
     if (native || isTest && window.Native) return true;
-    showModal('native', '<span class="eyebrow">ANDROID EDITION</span><h3>安装 APK 后双人对战</h3><p>网页版可进行训练和远程对战。同网房间需要使用 APK。</p><button id="nativeBack" class="btn">返回</button>', { nativeBack:lanMenu }); return false;
+    showModal('native', '<span class="eyebrow">ANDROID EDITION</span><h3>安装 APK 后双人对战</h3><p>双人房间需要使用最新版 APK。</p><button id="nativeBack" class="btn">返回</button>', { nativeBack:lanMenu }); return false;
   }
   function hostRoom() {
     if (!needNative()) return; disconnect(false); transport='lan';netRole = 'host';
@@ -121,11 +123,11 @@ function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();di
       }, joinBack:lanMenu
     });
   }
-function validView(v){return v&&v.version===4&&v.own&&Number.isFinite(v.own.x)&&Number.isFinite(v.own.y)&&Number.isFinite(v.own.z)&&Number.isFinite(v.t)&&v.own.cd&&v.own.aim&&v.own.stats&&['curve','direct'].includes(v.own.artilleryMode)&&['shots','clues','effects','trails','log','sounds'].every(k=>Array.isArray(v[k])&&v[k].length<160);}
+function validView(v){return v&&v.version===5&&v.own&&Number.isFinite(v.own.x)&&Number.isFinite(v.own.y)&&Number.isFinite(v.own.z)&&Number.isFinite(v.t)&&v.own.cd&&v.own.aim&&v.own.stats&&['curve','direct'].includes(v.own.artilleryMode)&&['shots','clues','effects','trails','log','sounds'].every(k=>Array.isArray(v[k])&&v[k].length<160);}
 window.onNativeNetwork=function(event){
  if(!event||!event.type)return;
  if(event.type==='listening'&&netRole==='host'&&event.remote&&transport==='online'){
-  showModal('waiting',`<span class="eyebrow">REMOTE ROOM / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">8位房间码</small><div class="room-code">${escape(event.code)}</div><p>把房间码发给对方，选择“加入远程房间”后即可出战。APK 与网页版可以互通。</p><button id="copyRemoteCode" class="btn">复制房间码</button><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{copyRemoteCode:async()=>{try{await navigator.clipboard.writeText(event.code);$('copyRemoteCode').textContent='已复制';}catch(_){$('copyRemoteCode').textContent='房间码：'+event.code;}},cancelWaiting:()=>{disconnect(false);lanMenu();}});
+  showModal('waiting',`<span class="eyebrow">REMOTE ROOM / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">4位数字房间码</small><div class="room-code">${escape(event.code)}</div><p>把房间码发给对方，选择“加入远程房间”后即可出战。双方请安装 v0.6 或更高兼容版本。</p><button id="copyRemoteCode" class="btn">复制房间码</button><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{copyRemoteCode:async()=>{try{await navigator.clipboard.writeText(event.code);$('copyRemoteCode').textContent='已复制';}catch(_){$('copyRemoteCode').textContent='房间码：'+event.code;}},cancelWaiting:()=>{disconnect(false);lanMenu();}});
  }else if(event.type==='listening'&&netRole==='host'){
   const ips=(event.ips||[]).filter(a=>/^\d{1,3}(\.\d{1,3}){3}$/.test(a));showModal('waiting',`<span class="eyebrow">ROOM OPEN / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">房间码</small><div class="room-code">${escape(event.code)}</div><small class="room-note">连接地址（任选可达地址）</small>${ips.map(a=>`<div class="room-address">${escape(a)}</div>`).join('')||'<p class="connection-error">未找到地址，请连接 Wi-Fi 或开启热点后重试。</p>'}<div class="room-status">● 房间已开放</div><p>玩家 B 输入地址和房间码，连接后自动开始。双方须使用同一版本。</p><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{cancelWaiting:()=>{disconnect(false);lanMenu();}});
  }else if(event.type==='connected'&&netRole&&event.role===netRole&&modalKind==='waiting'&&!connected){
