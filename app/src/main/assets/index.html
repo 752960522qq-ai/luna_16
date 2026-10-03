@@ -1,55 +1,52 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#101a19">
-  <title>盲区交火</title>
-  <link rel="stylesheet" href="style.css">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><meta name="theme-color" content="#142720"><title>盲区交火 · 3D</title><link rel="stylesheet" href="style.css"></head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
-  <symbol id="i-uav" viewBox="0 0 32 32"><path d="M16 7v18M7 16h18M10 10l12 12m0-12L10 22"/><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="m12 12 4-3 4 3v8l-4 3-4-3Z"/></symbol>
-  <symbol id="i-missile" viewBox="0 0 32 32"><path d="M11 21 25 7c2 7-2 12-10 18l-4-4Zm14-14 1-3-3 1M12 19l-7 1 6-7 8-1m-5 12-1 5 7-6 1-8M8 24l-4 4m7-2-3 3"/></symbol>
-  <symbol id="i-artillery" viewBox="0 0 32 32"><path d="m9 19 13-14 4 4-13 14m-5-5 7 7M4 27h24M10 26l4-8 7 8M4 11q6-9 12-5"/><circle cx="7" cy="26" r="2"/><circle cx="24" cy="26" r="2"/></symbol>
-  <symbol id="i-move" viewBox="0 0 32 32"><path d="M5 23h17l5-6H12l-4 6Zm2-2v-6h10l4 3M17 8h11m-4-4 4 4-4 4"/><circle cx="10" cy="26" r="2"/><circle cx="23" cy="24" r="2"/></symbol>
-  <symbol id="i-decoy" viewBox="0 0 32 32"><path d="m16 8 8 15H8l8-15Zm0-4v-2M4 10l-2-2m28 0-2 2M5 27l-3 2m25-2 3 2M16 27v3"/><circle cx="16" cy="19" r="2"/></symbol>
-  <symbol id="i-dive" viewBox="0 0 32 32"><path d="m8 5 14 17m-11 1 11-1 1-11M5 20l2 7 7 2m10-2 3-3"/></symbol>
-  <symbol id="i-sam" viewBox="0 0 32 32"><path d="M5 25h20l-3 4H8l-3-4Zm6 0 5-8M13 19 23 5l4 4-10 14-4-4ZM7 6v8M3 10h8"/><circle cx="7" cy="10" r="6"/></symbol>
-  <symbol id="i-mg" viewBox="0 0 32 32"><path d="M7 14h14l7-3v5l-7 2H7v-4Zm1 4-3 7h5l3-7m4 0 7 10M4 29h24M27 5h3m-1 4h2"/></symbol>
-  <symbol id="i-sound" viewBox="0 0 32 32"><path d="M5 12h6l7-6v20l-7-6H5v-8Zm18-3q8 7 0 14m-1-10q3 3 0 6"/></symbol>
-  <symbol id="i-pause" viewBox="0 0 32 32"><path d="M11 7v18M21 7v18"/></symbol>
-  <symbol id="i-arrow" viewBox="0 0 32 32"><path d="M5 16h22m-8-8 8 8-8 8"/></symbol>
-  <symbol id="i-link" viewBox="0 0 32 32"><path d="m12 21-2 2a6 6 0 0 1-9-9l8-8a6 6 0 0 1 9 0m2 5 2-2a6 6 0 0 1 9 9l-8 8a6 6 0 0 1-9 0M11 21l10-10"/></symbol>
+<symbol id="i-uav" viewBox="0 0 32 32"><path d="m16 3 2 11 11 5v3l-11-3-1 6 5 3H10l5-3-1-6-11 3v-3l11-5 2-11Z"/></symbol>
+<symbol id="i-missile" viewBox="0 0 32 32"><path d="M11 21 25 7c2 7-2 12-10 18l-4-4Zm14-14 1-3-3 1M12 19l-7 1 6-7 8-1m-5 12-1 5 7-6 1-8M8 24l-4 4"/></symbol>
+<symbol id="i-artillery" viewBox="0 0 32 32"><path d="m9 19 13-14 4 4-13 14m-5-5 7 7M4 27h24M10 26l4-8 7 8M4 11q6-9 12-5"/><circle cx="7" cy="26" r="2"/><circle cx="24" cy="26" r="2"/></symbol>
+<symbol id="i-sam" viewBox="0 0 32 32"><path d="M5 25h20l-3 4H8l-3-4Zm6 0 5-8M13 19 23 5l4 4-10 14-4-4ZM7 6v8M3 10h8"/><circle cx="7" cy="10" r="6"/></symbol>
+<symbol id="i-mg" viewBox="0 0 32 32"><path d="M7 14h14l7-3v5l-7 2H7v-4Zm1 4-3 7h5l3-7m4 0 7 10M4 29h24M27 5h3m-1 4h2"/></symbol>
+<symbol id="i-sound" viewBox="0 0 32 32"><path d="M5 12h6l7-6v20l-7-6H5v-8Zm18-3q8 7 0 14m-1-10q3 3 0 6"/></symbol>
+<symbol id="i-pause" viewBox="0 0 32 32"><path d="M11 7v18M21 7v18"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 32 32"><path d="M5 16h22m-8-8 8 8-8 8"/></symbol>
+<symbol id="i-link" viewBox="0 0 32 32"><path d="m12 21-2 2a6 6 0 0 1-9-9l8-8a6 6 0 0 1 9 0m2 5 2-2a6 6 0 0 1 9 9l-8 8a6 6 0 0 1-9 0M11 21l10-10"/></symbol>
+<symbol id="i-truck" viewBox="0 0 32 32"><path d="M3 13h17v11H3V13Zm17 4h5l4 6v1h-9v-7ZM9 12l8-7 5 4-5 4"/><circle cx="8" cy="25" r="3"/><circle cx="24" cy="25" r="3"/></symbol>
 </defs></svg>
+<div id="worldStage"><canvas id="world" aria-label="3D战场，可拖动瞄准"></canvas></div>
 <main id="menu" class="screen menu">
-  <canvas id="menuRadar" aria-hidden="true"></canvas>
-  <div class="menu-top"><span class="eyebrow"><i></i> BLINDFIRE / 01</span><button class="icon-button sound-button" aria-label="开关声音"><svg><use href="#i-sound"/></svg></button></div>
-  <div class="brand"><div class="brand-index">战 术 交 火 试 验</div><h1>盲区<br><span>交火</span><b>。</b></h1><p>每一次攻击<br>也是一条情报。</p></div>
-  <div class="menu-bottom">
-    <div class="difficulty"><span>单人难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button></div>
-    <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span><svg><use href="#i-arrow"/></svg></button>
-    <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同一 Wi-Fi / 热点</small></button>
-    <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>FIRST BUILD · v0.1</span></div>
-  </div>
+ <div class="menu-top"><span class="eyebrow"><i></i> BLINDFIRE / 3D</span><button class="icon-button sound-button" aria-label="开关声音"><svg><use href="#i-sound"/></svg></button></div>
+ <div class="brand"><div class="brand-index">未知敌情 / 手动交火</div><h1>盲区<br><span>交火</span><b>。</b></h1><p>每一次攻击，<br>也是一条情报。</p><div class="edition-tag"><span>3D</span> 第三人称战术对战</div></div>
+ <div class="menu-bottom"><div class="difficulty"><span>训练难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button></div>
+ <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span><svg><use href="#i-arrow"/></svg></button>
+ <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同一 Wi-Fi / 热点</small></button>
+ <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>MANUAL COMBAT · v0.2</span></div></div>
 </main>
 <main id="battle" class="screen battle hidden">
-  <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练 / A</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
-  <div class="status-row"><div class="health"><span>发射车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div><div id="intelBadge" class="intel-badge">敌情未知</div></div>
-  <section class="map-section" aria-label="战术地图"><canvas id="map"></canvas><div class="map-top"><span id="sectorLabel">GRID / 8 × 12</span><span><i></i> NORTH ↑</span></div><div id="mapAlert" class="map-alert hidden"></div><div id="countdown" class="countdown hidden"></div><div id="toast" class="toast hidden"></div><div class="map-bottom"><span class="legend"><i></i> 我方 <i class="hostile"></i> 敌方线索</span><span id="scanCount">UAV / 0</span></div></section>
-  <div id="eventLine" class="event-line"><i></i><span>行动开始：敌方位置未知</span></div>
-  <footer class="controls">
-    <div id="actionHint" class="action-hint">选择装备，然后点击地图</div>
-    <div class="weapon-row">
-      <button class="weapon selected" data-action="uav"><div><svg><use href="#i-uav"/></svg><span class="counter" id="uavCounter"></span></div><b>无人机</b><small>侦察 / 就绪</small><i class="cooldown"></i></button>
-      <button class="weapon" data-action="missile"><div><svg><use href="#i-missile"/></svg></div><b>巡航导弹</b><small>精确 / 就绪</small><i class="cooldown"></i></button>
-      <button class="weapon" data-action="artillery"><div><svg><use href="#i-artillery"/></svg></div><b>曲射火炮</b><small>区域 / 就绪</small><i class="cooldown"></i></button>
-    </div>
-    <div class="utility-row"><button data-action="move"><svg><use href="#i-move"/></svg><span>机动</span><small></small></button><button data-action="dive"><svg><use href="#i-dive"/></svg><span>无人机俯冲</span></button><button data-action="decoy"><svg><use href="#i-decoy"/></svg><span>诱饵</span><small></small></button></div>
-    <div class="defense-row"><button id="samButton" data-action="sam"><svg><use href="#i-sam"/></svg><span>防空导弹</span><small>就绪</small></button><button id="mgButton"><svg><use href="#i-mg"/></svg><span>高射机枪</span><small>按住拦截</small></button></div>
-  </footer>
+ <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
+ <div class="health"><span>发射车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div>
+ <div class="intel-panel"><span class="eyebrow">CONTACT / INTEL</span><div id="intelBadge" class="intel-badge">敌情未知</div><div id="threatAlert" class="hidden">空中威胁</div></div>
+ <div class="mini-wrap"><canvas id="mini" aria-label="小型情报雷达"></canvas><span>情报雷达 · 北向上</span></div>
+ <div id="cameraBadge" class="camera-badge"><i></i><span>发射车 / 第三人称</span></div>
+ <div id="ballisticPanel" class="ballistic-panel hidden"><span>弹道剖面</span><canvas id="ballisticScope" width="240" height="116" aria-label="火炮抛物线剖面"></canvas></div>
+ <div id="reticle" class="reticle"><i></i><b></b><span></span></div><div id="impactLabel" class="impact-label hidden">预计落点</div>
+ <div id="countdown" class="countdown hidden"></div><div id="toast" class="toast hidden"></div>
+ <div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
+ <div class="camera-actions"><button id="returnVehicle" class="hidden"><svg><use href="#i-truck"/></svg>返回车辆</button><button id="takeUAV" class="hidden"><svg><use href="#i-uav"/></svg>接管无人机</button></div>
+ <div id="eventLine" class="event-line"><i></i><span>敌方位置未知 · 侦察或观察空中尾迹</span></div>
+ <div id="joystick" class="joystick" role="slider" tabindex="0" aria-label="驾驶和飞行摇杆"><div class="stick-arrows"><span>↑</span><span>← · →</span><span>↓</span></div><div id="stickKnob" class="stick-knob"></div><span id="stickLabel" class="stick-label">驾驶 / 转向</span></div>
+ <div class="fire-area"><span id="dragHint">右侧拖动瞄准</span><button id="fireButton" class="fire-button" aria-label="开火"><span class="fire-mark">⊕</span><b id="fireLabel">发射</b><small id="fireSub">手动控制</small></button></div>
+ <footer class="controls"><div id="actionHint" class="action-hint">停车，瞄准，再开火</div><div class="weapon-row">
+ <button class="weapon" data-weapon="uav"><svg><use href="#i-uav"/></svg><b>无人机</b><small>就绪</small><i class="cooldown"></i></button>
+ <button class="weapon selected" data-weapon="missile"><svg><use href="#i-missile"/></svg><b>导弹</b><small>就绪</small><i class="cooldown"></i></button>
+ <button class="weapon" data-weapon="artillery"><svg><use href="#i-artillery"/></svg><b>火炮</b><small>就绪</small><i class="cooldown"></i></button>
+ <button class="weapon" data-weapon="sam"><svg><use href="#i-sam"/></svg><b>防空弹</b><small>就绪</small><i class="cooldown"></i></button>
+ <button class="weapon" data-weapon="mg"><svg><use href="#i-mg"/></svg><b>机枪</b><small>按住开火</small><i class="cooldown"></i></button>
+ </div></footer>
 </main>
+<div id="damageFlash" class="damage-flash"></div>
+<div id="graphicsError" class="graphics-error hidden"><span class="eyebrow">3D DISPLAY</span><h3>无法启动 3D 画面</h3><p>请更新手机的 Android System WebView / Chrome 后重新打开游戏。此版本需要 WebGL 2。</p><button onclick="location.reload()">重试</button></div>
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div id="modalCard" class="modal-card"></div></div>
-<script src="engine.js"></script><script src="render.js"></script><script src="app.js"></script>
-</body>
-</html>
+<script src="engine.js"></script><script type="module" src="app.js"></script>
+</body></html>

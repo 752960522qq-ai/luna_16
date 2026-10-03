@@ -1,46 +1,25 @@
-const {chromium}=require('playwright');
-const assert=require('node:assert/strict');
-const path=require('node:path');
-const output=process.env.TEST_OUTPUT || path.resolve('test-output');
-const fs=require('node:fs');fs.mkdirSync(output,{recursive:true});
-const http=require('node:http');
-const errors=[];
+const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
+const {open}=require('./browser-helpers.cjs');const output=process.env.TEST_OUTPUT||path.resolve('test-output');fs.mkdirSync(output,{recursive:true});
 (async()=>{
-  const assets=path.resolve('app/src/main/assets');
-  const server=http.createServer((req,res)=>{const file=path.join(assets,req.url.split('?')[0]==='/'?'index.html':req.url.split('?')[0]);try{const data=fs.readFileSync(file);res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.woff')?'font/woff':'text/html');res.end(data);}catch(_){res.statusCode=404;res.end();}});
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}/?test=1`;
-  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE,headless:true,args:['--no-sandbox','--disable-dev-shm-usage'],env:process.env});
-  const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});
-  page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base);await page.waitForFunction(()=>!!window.GameDebug);await page.waitForTimeout(250);
-  await page.screenshot({path:path.join(output,'blindfire-menu.png')});
-  await page.getByRole('button',{name:/作战指南/}).click();assert.equal(await page.locator('.guide-list li').count(),7);await page.locator('#guideClose').click();
-  await page.locator('#startAI').click();await page.waitForFunction(()=>window.GameDebug.view.started);assert.equal(await page.locator('#intelBadge').textContent(),'敌情未知');
-  const bounds=await page.locator('#map').boundingBox();await page.locator('[data-action="uav"]').click();await page.mouse.click(bounds.x+bounds.width*.5,bounds.y+bounds.height*.3);
-  const launched=await page.evaluate(()=>window.GameDebug.view.shots.filter(s=>s.mine&&s.kind==='uav').length);assert.equal(launched,1);
-  assert.ok((await page.locator('[data-action="uav"] small').textContent()).includes('冷却'));
-  await page.locator('[data-action="missile"]').click();assert.equal(await page.evaluate(()=>window.GameDebug.selected),'missile');
-  await page.locator('#pauseButton').click();const before=await page.evaluate(()=>window.GameDebug.engine.t);await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>window.GameDebug.engine.t),before);
-  await page.locator('#pauseGuide').click();await page.locator('#guideClose').click();await page.locator('#resume').click();
-  // Exercise real rendering of a deterministic combat state after gameplay rules
-  // have generated reconnaissance, hostile evidence, flight and relocation.
-  await page.evaluate(()=>{
-    window.GameDebug.start(8086);const e=window.GameDebug.engine;e.mode='lan';e.countdown=0;
-    Object.assign(e.players[0],{x:260,y:960});Object.assign(e.players[1],{x:585,y:275});
-    e.command(0,{type:'uav',x:585,y:275});e.command(1,{type:'uav',x:400,y:680});
-    for(let i=0;i<420;i++)e.update(1/60);
-    e.command(0,{type:'missile',x:585,y:275});e.command(1,{type:'missile',x:260,y:960});
-    for(let i=0;i<52;i++)e.update(1/60);
-    e.command(0,{type:'decoy'});e.command(0,{type:'move',x:385,y:990});
-  });await page.waitForTimeout(100);await page.screenshot({path:path.join(output,'blindfire-battle.png')});
-  for(const [width,height] of [[360,640],[412,915],[320,568],[768,1024]]){
-    await page.setViewportSize({width,height});await page.waitForTimeout(100);
-    const layout=await page.evaluate(()=>{const c=document.querySelector('.controls').getBoundingClientRect();const map=document.querySelector('#map').getBoundingClientRect();return {bottom:c.bottom,h:innerHeight,mapHeight:map.height,overflow:document.body.scrollWidth>innerWidth};});
-    assert.ok(layout.bottom<=layout.h+1,`${width}x${height} controls clipped`);assert.ok(layout.mapHeight>190,`${width}x${height} map too small`);assert.equal(layout.overflow,false);
-  }
-  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>{window.GameDebug.engine.finish(0,'摧毁敌方发射车');window.GameDebug.dispatch({type:'mg',active:false});});await page.waitForTimeout(130);
-  assert.ok((await page.locator('#modalCard h3').textContent()).includes('胜利'));await page.locator('#again').click();assert.equal(await page.locator('#modal').isVisible(),false);
-  await page.evaluate(()=>window.GameDebug.returnMenu());await page.locator('#openLAN').click();await page.locator('#hostRoom').click();assert.ok((await page.locator('#modalCard h3').textContent()).includes('APK'));
-  assert.deepEqual(errors,[]);console.log('PASS UI touch targeting, cooldown, pause/guide/resume, win/rematch, LAN fallback and 4 screen sizes');
-  await browser.close();server.close();
+ const{browser,server,url}=await open();const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto(url);await page.waitForFunction(()=>window.GameDebug&&GameDebug.renderer.ready);await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>GameDebug.renderer.stats.webgl),true);
+  await page.screenshot({path:path.join(output,'blindfire-3d-menu.png')});await page.locator('#openGuide').click();assert.equal(await page.locator('.guide-list li').count(),7);await page.locator('#guideClose').click();
+  await page.locator('#startAI').click();await page.evaluate(()=>{GameDebug.engine.mode='lan';GameDebug.engine.countdown=0;});await page.waitForFunction(()=>GameDebug.view.started);assert.equal(await page.evaluate(()=>GameDebug.view.enemy),null);assert.equal(await page.evaluate(()=>GameDebug.renderer.enemyTruck.visible),false);assert.equal(await page.evaluate(()=>GameDebug.renderer.cameraKey),'truck');
+  const initial=await page.evaluate(()=>({x:GameDebug.view.own.x,z:GameDebug.view.own.z})),j=await page.locator('#joystick').boundingBox();await page.mouse.move(j.x+j.width/2,j.y+j.height/2);await page.mouse.down();await page.mouse.move(j.x+j.width/2+20,j.y+15);await page.waitForTimeout(350);assert.ok(await page.evaluate(()=>GameDebug.view.own.speed>1));await page.mouse.up();await page.waitForFunction(()=>Math.abs(GameDebug.view.own.speed)<1);const moved=await page.evaluate(()=>({x:GameDebug.view.own.x,z:GameDebug.view.own.z}));assert.ok(Math.hypot(moved.x-initial.x,moved.z-initial.z)>1);
+  const yaw=await page.evaluate(()=>GameDebug.view.own.aim.missile.yaw);await page.mouse.move(275,330);await page.mouse.down();await page.mouse.move(335,310,{steps:4});await page.mouse.up();await page.waitForTimeout(140);assert.ok(Math.abs(await page.evaluate(()=>GameDebug.view.own.aim.missile.yaw)-yaw)>.2);
+  await page.locator('[data-weapon="artillery"]').click();await page.waitForFunction(()=>GameDebug.renderer.arc.visible);assert.equal(await page.locator('#ballisticPanel').isVisible(),true);await page.locator('#fireButton').click();await page.waitForFunction(()=>GameDebug.view.own.cd.artillery>0);assert.ok(await page.evaluate(()=>GameDebug.engine.shots.some(s=>s.kind==='artillery')));
+  await page.locator('#pauseButton').click();const before=await page.evaluate(()=>GameDebug.engine.t);await page.waitForTimeout(180);assert.equal(await page.evaluate(()=>GameDebug.engine.t),before);await page.locator('#pauseGuide').click();await page.locator('#guideClose').click();await page.locator('#resume').click();
+  await page.locator('[data-weapon="missile"]').click();await page.locator('#fireButton').click();await page.waitForFunction(()=>GameDebug.view.own.pilot&&GameDebug.renderer.cameraKey.startsWith('flight'));assert.equal(await page.evaluate(()=>GameDebug.view.shots.find(s=>s.id===GameDebug.view.own.pilot).kind),'missile');const missile=await page.evaluate(()=>GameDebug.view.own.pilot);await page.locator('#returnVehicle').click();await page.waitForFunction(()=>GameDebug.view.own.pilot===null&&GameDebug.renderer.cameraKey==='truck');assert.ok(await page.evaluate(id=>GameDebug.view.shots.some(s=>s.id===id),missile));
+  await page.locator('[data-weapon="uav"]').click();await page.locator('#fireButton').click();await page.waitForFunction(()=>GameDebug.view.shots.some(s=>s.id===GameDebug.view.own.pilot&&s.kind==='uav'));await page.locator('#returnVehicle').click();await page.waitForSelector('#takeUAV');await page.locator('#takeUAV').click();await page.waitForFunction(()=>GameDebug.view.own.pilot!==null);await page.locator('#returnVehicle').click();
+  await page.locator('[data-weapon="sam"]').click();await page.locator('#fireButton').click();await page.waitForFunction(()=>GameDebug.view.shots.some(s=>s.id===GameDebug.view.own.pilot&&s.kind==='sam'));assert.equal(await page.locator('#fireButton').isDisabled(),true);await page.locator('#returnVehicle').click();
+  await page.locator('[data-weapon="mg"]').click();const f=await page.locator('#fireButton').boundingBox();await page.mouse.move(f.x+f.width/2,f.y+f.height/2);await page.mouse.down();await page.waitForTimeout(350);assert.equal(await page.evaluate(()=>GameDebug.view.own.mg),true);assert.ok(await page.evaluate(()=>GameDebug.view.shots.some(s=>s.mine&&s.kind==='bullet')));await page.mouse.up();await page.waitForFunction(()=>!GameDebug.view.own.mg);
+  assert.equal(await page.locator('[data-action="decoy"]').count(),0);
+  // Capture an actual rendered battle with simulated launch physics and trails.
+  await page.evaluate(()=>{GameDebug.start(2026);const e=GameDebug.engine,B=Blindfire;e.mode='lan';e.countdown=0;for(const[p,x,z,yaw]of[[e.players[0],410,1010,0],[e.players[1],570,200,Math.PI]]){Object.assign(p,{x,z,y:B.terrain(x,z),yaw});for(const a of Object.values(p.aim))a.yaw=yaw;}GameDebug.select('artillery');e.command(0,{type:'aim',yaw:0,pitch:.42});e.command(0,{type:'fire'});e.command(1,{type:'select',weapon:'artillery'});e.command(1,{type:'aim',yaw:Math.PI-.2,pitch:.5});e.command(1,{type:'fire'});for(let i=0;i<130;i++)e.update(1/60);});await page.waitForTimeout(140);await page.screenshot({path:path.join(output,'blindfire-3d-artillery.png')});
+  await page.locator('[data-weapon="missile"]').click();await page.waitForTimeout(200);await page.screenshot({path:path.join(output,'blindfire-3d-battle.png')});await page.locator('[data-weapon="uav"]').click();await page.locator('#fireButton').click();await page.waitForTimeout(450);await page.screenshot({path:path.join(output,'blindfire-3d-uav.png')});
+  for(const[width,height]of[[360,640],[412,915],[320,568],[768,1024]]){await page.setViewportSize({width,height});await page.waitForTimeout(100);const r=await page.evaluate(()=>{const controls=document.querySelector('.controls').getBoundingClientRect(),fire=document.querySelector('#fireButton').getBoundingClientRect(),joystick=document.querySelector('#joystick').getBoundingClientRect();return{bottom:controls.bottom,h:innerHeight,fireBottom:fire.bottom,controlsTop:controls.top,overlap:joystick.right>fire.left,overflow:document.body.scrollWidth>innerWidth};});assert.ok(r.bottom<=r.h+1);assert.ok(r.fireBottom<r.controlsTop);assert.equal(r.overlap,false);assert.equal(r.overflow,false);}
+  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>GameDebug.engine.finish(0,'摧毁敌方发射车'));await page.waitForSelector('#again');await page.locator('#again').click();assert.equal(await page.locator('#modal').isVisible(),false);await page.evaluate(()=>GameDebug.returnMenu());await page.locator('#openLAN').click();await page.locator('#hostRoom').click();assert.ok((await page.locator('#modalCard h3').textContent()).includes('APK'));assert.deepEqual(errors,[]);
+  console.log('PASS 3D WebGL, touch driving/aiming, five manual weapons, chase camera, pause, radar privacy, cooldown, rematch and four screen sizes');
+ }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -1,77 +1,23 @@
-'use strict';
-const assert = require('node:assert/strict');
-const { Engine, dist } = require('../app/src/main/assets/engine.js');
-const tests=[];
-function test(name, fn){tests.push([name,fn]);}
-function game(){return new Engine({seed:17,mode:'lan',countdown:0});}
-function advance(e,seconds){for(let t=0;t<seconds;t+=1/60)e.update(1/60);}
-
-test('random spawns, both perspectives initially hide the other launcher',()=>{
-  for(let seed=1;seed<100;seed++){
-    const e=new Engine({seed,mode:'lan'});
-    assert.ok(dist(e.players[0],e.players[1])>=600);
-    for(const id of [0,1]){const s=e.snapshot(id);assert.equal(s.enemy,null);assert.equal(s.clues.length,0);assert.equal(s.own.hp,100);assert.equal(s.shots.length,0);}
-  }
-});
-test('commands reject invalid coordinates, cooldowns and moving fire',()=>{
-  const e=game(),p=e.players[0];assert.equal(e.command(0,{type:'missile',x:NaN,y:500}).ok,false);
-  assert.equal(e.command(0,{type:'uav',x:500,y:500}).ok,true);
-  assert.equal(e.command(0,{type:'uav',x:500,y:500}).ok,false);
-  assert.equal(e.command(0,{type:'move',x:p.x>400?40:760,y:p.y>600?40:1160}).ok,true);
-  assert.ok(dist(p,p.destination)<=210.001);
-  assert.equal(e.command(0,{type:'artillery',x:400,y:500}).ok,false);
-  assert.equal(e.command(0,{type:'sam'}).ok,false);
-  advance(e,4.6);assert.equal(p.destination,null);assert.equal(e.command(0,{type:'artillery',x:400,y:500}).ok,true);
-});
-test('UAV travels, detects, can be shot down, precision expires and ghost stays stale',()=>{
-  const e=game();Object.assign(e.players[0],{x:300,y:950});Object.assign(e.players[1],{x:400,y:280});
-  e.command(0,{type:'uav',x:400,y:280});const drone=e.shots[0];assert.equal(drone.y,950);
-  advance(e,6);assert.ok(drone.y<500);assert.ok(e.snapshot(0).enemy.precise);
-  const before={...e.snapshot(0).enemy};e.intercept(drone,1);advance(e,.1);
-  assert.ok(e.snapshot(0).clues.some(c=>c.kind==='probe'));
-  e.players[1].x+=200;advance(e,5.5);
-  const stale=e.snapshot(0).enemy;assert.equal(stale.precise,false);assert.equal(stale.x,before.x);assert.equal(stale.hp,null);
-  advance(e,17);assert.equal(e.snapshot(0).enemy,null);
-});
-test('hostile trajectory evidence contains no launch origin, destination or hidden current position',()=>{
-  const e=game();const a=e.players[0],b=e.players[1];e.command(1,{type:'missile',x:a.x,y:a.y});advance(e,.8);
-  const s=e.snapshot(0);assert.ok(s.clues.some(c=>c.kind==='direction'));
-  assert.equal(s.enemy,null);assert.ok(s.shots.length);
-  for(const shot of s.shots){assert.equal(shot.mine,false);for(const k of ['sx','sy','tx','ty','targetId','owner'])assert.equal(k in shot,false);assert.ok(shot.trail.every(p=>dist(p,b)>100));}
-  assert.equal('players' in s,false);
-});
-test('direct missile and artillery damage, ending and result perspective',()=>{
-  const e=game();Object.assign(e.players[0],{x:200,y:950});Object.assign(e.players[1],{x:400,y:300});
-  e.command(0,{type:'missile',x:400,y:300});advance(e,3.2);assert.equal(e.players[1].hp,20);
-  e.command(0,{type:'artillery',x:400,y:300});advance(e,1.2);assert.equal(e.players[1].hp,0);
-  assert.equal(e.snapshot(0).outcome,'win');assert.equal(e.snapshot(1).outcome,'loss');assert.equal(e.players[0].stats.damage,100);
-});
-test('SAM intercepts air targets and never consumes a shot on artillery',()=>{
-  const e=game();Object.assign(e.players[0],{x:400,y:900});
-  const s=e.projectile('missile',1,{x:700,y:900},{x:400,y:900},245);s.distance=150;advance(e,.1);
-  e.random=()=>0;assert.equal(e.command(0,{type:'sam'}).ok,true);advance(e,1.5);
-  assert.equal(e.players[0].hp,100);assert.equal(e.players[0].stats.intercepted,1);assert.ok(e.players[0].cd.sam>0);
-  const f=game();const a=f.players[0];f.projectile('artillery',1,{x:a.x+200,y:a.y},{x:a.x,y:a.y},820);
-  assert.equal(f.threats(0,300).length,0);assert.equal(f.command(0,{type:'sam'}).ok,false);assert.equal(f.players[0].cd.sam,0);
-});
-test('continuous MG has no cooldown, stops on release and intercepts drones',()=>{
-  const e=game();Object.assign(e.players[0],{x:400,y:900});e.random=()=>0;
-  const u=e.projectile('uav',1,{x:500,y:900},{x:500,y:900},100);u.state='orbit';u.distance=200;u.tx=470;
-  e.command(0,{type:'mg',active:true});advance(e,1);assert.equal(e.players[0].stats.intercepted,1);
-  e.command(0,{type:'mg',active:false});assert.equal(e.players[0].mg,false);assert.equal('mg' in e.players[0].cd,false);
-});
-test('decoy mimics a heat source and absorbs strikes without damaging a remote enemy',()=>{
-  const e=game();Object.assign(e.players[1],{x:400,y:300});e.command(1,{type:'decoy'});e.players[1].x=700;e.players[1].y=700;
-  const u=e.projectile('uav',0,{x:390,y:300},{x:400,y:300},100);e.scout(u);
-  assert.equal(e.snapshot(0).enemy.hp,null);assert.equal(e.snapshot(0).enemy.x,400);
-  e.explode({x:400,y:300,kind:'missile',owner:0,hp:1});assert.equal(e.players[1].hp,100);assert.equal(e.decoys[0].hp,0);
-});
-test('unseen enemy coordinates cannot alter AI target choices',()=>{
-  const a=new Engine({seed:203,countdown:0}),b=new Engine({seed:203,countdown:0});
-  a.players[0].x=45;a.players[0].y=60;b.players[0].x=745;b.players[0].y=1130;
-  for(let i=0;i<25;i++)assert.deepEqual(a.aiTarget(a.players[1]),b.aiTarget(b.players[1]));
-});
-test('time limits and equal HP result in a draw',()=>{const e=game();advance(e,180.2);assert.equal(e.over,true);assert.equal(e.snapshot(0).outcome,'draw');});
-
-let failed=0;for(const [name,fn] of tests){try{fn();console.log('PASS',name);}catch(err){failed++;console.error('FAIL',name,err.message);}}
-if(failed)process.exit(1);console.log(`${tests.length} meaningful rules checks passed`);
+const assert=require('node:assert/strict');
+const {Engine,C,terrain,dist,dist3,ballistic,muzzle,GRAVITY,SHELL_SPEED,TRAIL_LIFE}=require('../app/src/main/assets/engine.js');
+let passed=0;
+function test(name,fn){fn();passed++;console.log('PASS',name);}
+function setup(opts={}){const e=new Engine({seed:42,mode:'lan',countdown:0,...opts});for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}return e;}
+function tick(e,time){for(let t=0;t<time-1e-8;t+=1/120)e.update(Math.min(1/120,time-t));}
+function weapon(e,id,k,yaw=0,pitch=.24){assert.equal(e.command(id,{type:'vehicle'}).ok,true);assert.equal(e.command(id,{type:'select',weapon:k}).ok,true);assert.equal(e.command(id,{type:'aim',yaw,pitch}).ok,true);}
+function target(e,position){weapon(e,1,'uav',0,.1);const r=e.command(1,{type:'fire'});const s=e.shots.find(s=>s.id===r.id);Object.assign(s,position,{speed:0});return s;}
+test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>600);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,2);}}assert.equal('decoy' in C,false);});
+test('manual drive, terrain height, input timeout and moving fire restriction',()=>{const e=setup(),p=e.players[0],z=p.z;e.command(0,{type:'control',throttle:1,steer:.2});tick(e,.3);assert.ok(p.z<z-3);assert.ok(p.yaw>0);assert.equal(p.y,terrain(p.x,p.z));assert.equal(e.command(0,{type:'fire'}).ok,false);tick(e,1.6);assert.equal(p.drive.throttle,0);assert.ok(p.speed<1);});
+test('artillery physics matches the parabolic preview and cooldown',()=>{const e=setup(),p=e.players[0];weapon(e,0,'artillery',0,.54);const arc=ballistic(p),m=muzzle(p,'artillery');assert.ok(arc.hit);assert.ok(arc.range>600);assert.equal(e.command(0,{type:'fire'}).ok,true);assert.equal(p.pilot,null);assert.equal(e.command(0,{type:'fire'}).ok,false);tick(e,.7);const s=e.shots.find(s=>s.kind==='artillery');assert.ok(Math.abs(s.y-(m.y+Math.sin(.54)*SHELL_SPEED*.7-.5*GRAVITY*.7*.7))<.01);tick(e,arc.time-.7+.08);const crater=e.effects.find(e=>e.kind==='crater');assert.ok(crater);assert.ok(dist(crater,arc.hit)<.05,`preview error ${dist(crater,arc.hit)}`);assert.equal(p.stats.launches,1);});
+test('white trails remain after impact and each segment expires after 8 seconds',()=>{const e=setup();weapon(e,0,'artillery',0,.3);const r=e.command(0,{type:'fire'});tick(e,3.5);assert.equal(e.shots.some(s=>s.id===r.id),false);assert.ok(e.snapshot(0).trails.some(t=>t.id===r.id));const last=e.trails.find(t=>t.id===r.id).points.at(-1).t;tick(e,last+TRAIL_LIFE-e.t+.05);assert.equal(e.snapshot(0).trails.some(t=>t.id===r.id),false);});
+test('missile and UAV launch into their own manually piloted chase state',()=>{for(const k of ['missile','uav','sam']){const e=setup();weapon(e,0,k,0,.3);const r=e.command(0,{type:'fire'}),p=e.players[0];assert.equal(p.pilot,r.id);const s=e.shots.find(s=>s.id===r.id);const yaw=s.yaw;e.command(0,{type:'control',throttle:.5,steer:.6});tick(e,.3);assert.ok(s.yaw>yaw+.15);assert.ok(s.pitch>.4);assert.equal(e.snapshot(0).own.pilot,r.id);e.command(0,{type:'vehicle'});assert.equal(p.pilot,null);assert.ok(e.shots.some(s=>s.id===r.id));}});
+test('UAV can be reacquired and detects only nearby unobstructed heat',()=>{const e=setup();weapon(e,0,'uav',0,.3);const r=e.command(0,{type:'fire'}),s=e.shots.find(s=>s.id===r.id),foe=e.players[1];assert.equal(e.snapshot(0).enemy,null);Object.assign(s,{x:foe.x,z:foe.z+60,y:foe.y+65,pitch:0});tick(e,.1);assert.equal(e.snapshot(0).enemy.precise,true);assert.equal(e.players[0].stats.detections,1);e.command(0,{type:'vehicle'});assert.equal(e.command(0,{type:'pilot',id:s.id}).ok,true);s.hp=0;tick(e,.1);assert.equal(e.players[0].pilot,null);tick(e,5.1);assert.equal(e.snapshot(0).enemy.precise,false);tick(e,17);assert.equal(e.snapshot(0).enemy,null);});
+test('manual missile direct hit gives 80 damage without automatic targeting',()=>{const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(foe,{x:p.x,z:p.z-200,y:terrain(p.x,p.z-200)});const pitch=Math.atan2(foe.y+3-(p.y+5.7),200);weapon(e,0,'missile',0,pitch);e.command(0,{type:'fire'});tick(e,1.5);assert.equal(foe.hp,20);assert.equal(p.stats.damage,80);assert.equal(p.pilot,null);});
+test('manual SAM aimed away misses; no homing, target selection or chance roll',()=>{const e=setup(),p=e.players[0],q=target(e,{x:p.x,y:p.y+38,z:p.z-140});weapon(e,0,'sam',Math.PI/2,.3);e.command(0,{type:'fire'});tick(e,.65);assert.equal(q.hp,27);const sam=e.shots.find(s=>s.kind==='sam');assert.ok(sam);assert.equal(sam.yaw,Math.PI/2);assert.equal(p.stats.intercepted,0);});
+test('manual SAM proximity intercept succeeds when the flight path reaches the target',()=>{const e=setup(),p=e.players[0],q=target(e,{x:p.x,y:p.y+38,z:p.z-140});weapon(e,0,'sam',0,Math.atan2(38-5.7,140));e.command(0,{type:'fire'});tick(e,.7);assert.equal(e.shots.some(s=>s.id===q.id),false);assert.equal(p.stats.intercepted,1);assert.ok(e.players[1].intel.clues.some(c=>c.kind==='probe'));});
+test('MG only hits along the manually aimed barrel; no cooldown',()=>{const e=setup(),p=e.players[0],q=target(e,{x:p.x+95,y:p.y+40,z:p.z-120});weapon(e,0,'mg',0,.2);e.command(0,{type:'mg',active:true});tick(e,.75);assert.equal(q.hp,27);const yaw=Math.atan2(95,120),pitch=Math.atan2(40-5.7,Math.hypot(95,120));e.command(0,{type:'aim',yaw,pitch});tick(e,.8);assert.equal(e.shots.some(s=>s.id===q.id),false);assert.equal(p.stats.intercepted,1);assert.equal(p.cd.mg,0);e.command(0,{type:'mg',active:false});});
+test('artillery cannot be intercepted by manual air defenses',()=>{const e=setup();weapon(e,1,'artillery',0,.6);const r=e.command(1,{type:'fire'}),q=e.shots.find(s=>s.id===r.id),p=e.players[0];Object.assign(q,{x:p.x,y:p.y+38,z:p.z-140,vx:0,vy:0,vz:0});weapon(e,0,'sam',0,Math.atan2(38-5.7,140));e.command(0,{type:'fire'});tick(e,.6);assert.ok(e.shots.some(s=>s.id===q.id));assert.equal(p.stats.intercepted,0);});
+test('unobserved enemy position, launcher origin and commands are not transmitted',()=>{const e=setup();weapon(e,1,'missile',Math.PI,.35);e.command(1,{type:'fire'});tick(e,1);const v=e.snapshot(0);assert.equal(v.enemy,null);for(const s of v.shots.filter(s=>!s.mine))for(const k of ['owner','sx','sy','sz','tx','ty','tz','targetId','hp','remaining'])assert.equal(k in s,false);assert.equal('decoys' in v,false);assert.equal(e.command(0,{type:'decoy'}).ok,false);assert.equal(e.command(0,{type:'aim',yaw:NaN,pitch:0}).ok,false);assert.equal(e.command(0,{type:'control',throttle:Infinity,steer:0}).ok,false);});
+test('AI searches with its own information instead of reading the hidden opponent',()=>{const a=setup({mode:'ai'}),b=setup({mode:'ai'});for(const e of[a,b]){const p=e.players[1];Object.assign(p,{x:170,z:180,y:terrain(170,180)});}Object.assign(a.players[0],{x:750,z:1120,y:terrain(750,1120)});Object.assign(b.players[0],{x:680,z:1090,y:terrain(680,1090)});tick(a,2);tick(b,2);assert.deepEqual(a.players[1].aim,b.players[1].aim);assert.deepEqual(a.shots.map(s=>[s.kind,s.x,s.y,s.z,s.yaw,s.pitch]),b.shots.map(s=>[s.kind,s.x,s.y,s.z,s.yaw,s.pitch]));assert.equal(a.players[1].intel.lock,null);});
+test('bounded snapshot, full round completion and HP outcome',()=>{const e=setup();for(let i=0;i<180*30;i++){e.update(1/30);if(i%150===0){for(let id=0;id<2;id++){const p=e.players[id];weapon(e,id,'artillery',id?Math.PI:0,.6);e.command(id,{type:'fire'});}assert.ok(Buffer.byteLength(JSON.stringify(e.snapshot(1)))<65536);}}tick(e,.1);assert.equal(e.over,true);assert.equal(e.winner,null);assert.equal(e.snapshot(0).outcome,'draw');});
+console.log(`${passed} 3D engine checks passed`);

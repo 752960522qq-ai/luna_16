@@ -1,48 +1,25 @@
-const {chromium}=require('playwright');
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
+const assert=require('node:assert/strict');const{open}=require('./browser-helpers.cjs');
 (async()=>{
-  const assets=path.resolve('app/src/main/assets');
-  const server=http.createServer((req,res)=>{const file=path.join(assets,req.url.split('?')[0]==='/'?'index.html':req.url.split('?')[0]);try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.woff')?'font/woff':'text/html');res.end(fs.readFileSync(file));}catch(_){res.statusCode=404;res.end();}});
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}/?test=1`;
-  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE,headless:true,args:['--no-sandbox','--disable-dev-shm-usage'],env:process.env});
-  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-  const a=await context.newPage(),b=await context.newPage(),errors=[];let host=null,guest=null,linked=false,frames=0;
-  for(const p of [a,b]){
-    p.on('pageerror',e=>errors.push(e.message));
-    await p.exposeBinding('bridgeCall',async(source,kind,data)=>{
-      if(kind==='host'){host=source.page;await host.evaluate(()=>window.onNativeNetwork({type:'listening',code:'123456',ips:['127.0.0.1']}));}
-      else if(kind==='join'){
-        assert.equal(data.ip,'127.0.0.1');assert.equal(data.code,'123456');guest=source.page;linked=true;
-        await guest.evaluate(()=>window.onNativeNetwork({type:'connected',role:'guest'}));
-        await host.evaluate(()=>window.onNativeNetwork({type:'connected',role:'host'}));
-      } else if(kind==='send' && linked){
-        const other=source.page===host?guest:host;
-        const packet=JSON.parse(data);if(packet.type==='state')frames++;
-        await other.evaluate(d=>window.onNativeNetwork({type:'data',data:d}),data);
-      } else if(kind==='leave'&&linked){
-        linked=false;const other=source.page===host?guest:host;
-        await other.evaluate(()=>window.onNativeNetwork({type:'closed',message:'对方已断开连接。'}));
-      }
-    });
-    await p.addInitScript(()=>{window.Native={host:()=>window.bridgeCall('host'),join:(ip,code)=>window.bridgeCall('join',{ip,code}),send:data=>window.bridgeCall('send',data),leave:()=>window.bridgeCall('leave'),vibrate:()=>{},finishApp:()=>{}};});
-    await p.goto(base);await p.waitForFunction(()=>!!window.GameDebug);
+ const{browser,server,url}=await open();const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const a=await context.newPage(),b=await context.newPage(),errors=[];let host=null,guest=null,linked=false,frames=0,maxBytes=0;
+ try{
+  for(const p of[a,b]){
+   p.on('pageerror',e=>errors.push(e.message));await p.exposeBinding('bridgeCall',async(source,kind,data)=>{
+    if(kind==='host'){host=source.page;await host.evaluate(()=>onNativeNetwork({type:'listening',code:'123456',ips:['127.0.0.1']}));}
+    else if(kind==='join'){assert.equal(data.ip,'127.0.0.1');assert.equal(data.code,'123456');guest=source.page;linked=true;await guest.evaluate(()=>onNativeNetwork({type:'connected',role:'guest'}));await host.evaluate(()=>onNativeNetwork({type:'connected',role:'host'}));}
+    else if(kind==='send'&&linked){const packet=JSON.parse(data),other=source.page===host?guest:host;if(packet.type==='state'){frames++;maxBytes=Math.max(maxBytes,Buffer.byteLength(data));assert.ok(data.length<65536);for(const s of packet.view.shots.filter(s=>!s.mine))assert.equal('owner' in s,false);}await other.evaluate(d=>onNativeNetwork({type:'data',data:d}),data);}
+    else if(kind==='leave'&&linked){linked=false;const other=source.page===host?guest:host;await other.evaluate(()=>onNativeNetwork({type:'closed',message:'对方已断开连接。'}));}
+   });await p.addInitScript(()=>{window.Native={host:()=>bridgeCall('host'),join:(ip,code)=>bridgeCall('join',{ip,code}),send:data=>bridgeCall('send',data),leave:()=>bridgeCall('leave'),vibrate:()=>{},finishApp:()=>{}};});await p.goto(url);await p.waitForFunction(()=>window.GameDebug&&GameDebug.renderer.ready);
   }
-  await a.locator('#openLAN').click();await a.locator('#hostRoom').click();await a.waitForSelector('.room-code');assert.equal(await a.locator('.room-code').textContent(),'123456');
-  await b.locator('#openLAN').click();await b.locator('#joinRoom').click();await b.locator('#hostIP').fill('127.0.0.1');await b.locator('#hostCode').fill('123456');await b.locator('#connectRoom').click();
-  await a.waitForFunction(()=>window.GameDebug.view&&window.GameDebug.view.started);await b.waitForFunction(()=>window.GameDebug.view&&window.GameDebug.view.started);
-  for(const p of [a,b]){assert.equal(await p.evaluate(()=>window.GameDebug.view.enemy),null);assert.equal(await p.evaluate(()=>window.GameDebug.view.own.hp),100);}
-  assert.ok((await b.locator('#modeLabel').textContent()).includes('玩家 B'));
-  const target=await a.evaluate(()=>({x:window.GameDebug.view.own.x,y:window.GameDebug.view.own.y}));
-  await b.evaluate(t=>window.GameDebug.dispatch({type:'missile',...t}),target);
-  await b.waitForFunction(()=>window.GameDebug.view.own.cd.missile>0);
-  await a.waitForFunction(()=>window.GameDebug.view.own.hp===20,{},{timeout:7000});
-  await b.waitForFunction(()=>window.GameDebug.view.own.stats.damage===80);
-  assert.equal(await b.evaluate(()=>window.GameDebug.view.own.stats.damage),80);
-  assert.equal(await b.evaluate(()=>window.GameDebug.view.enemy),null);
-  assert.ok(await a.evaluate(()=>window.GameDebug.view.clues.some(c=>c.kind==='direction')));
-  assert.ok(frames>40);
-  await b.evaluate(()=>window.GameDebug.returnMenu());await a.waitForSelector('#interruptedBack');
-  assert.ok((await a.locator('#modalCard h3').textContent()).includes('中断'));
-  assert.deepEqual(errors,[]);console.log('PASS two browser clients: room, countdown, hidden perspectives, guest command, damage/cooldown synchronization and disconnect');
-  await browser.close();server.close();
+  await a.locator('#openLAN').click();await a.locator('#hostRoom').click();await a.waitForSelector('.room-code');assert.equal(await a.locator('.room-code').textContent(),'123456');await b.locator('#openLAN').click();await b.locator('#joinRoom').click();await b.locator('#hostIP').fill('127.0.0.1');await b.locator('#hostCode').fill('123456');await b.locator('#connectRoom').click();await a.waitForFunction(()=>GameDebug.view&&GameDebug.view.started);await b.waitForFunction(()=>GameDebug.view&&GameDebug.view.started);
+  for(const p of[a,b]){assert.equal(await p.evaluate(()=>GameDebug.view.enemy),null);assert.equal(await p.evaluate(()=>GameDebug.view.own.hp),100);assert.equal(await p.evaluate(()=>GameDebug.renderer.cameraKey),'truck');}assert.ok((await b.locator('#modeLabel').textContent()).includes('玩家 B'));
+  // Exercise continuous guest input through the host, with no guest simulation.
+  const old=await a.evaluate(()=>GameDebug.engine.players[1].z);await b.keyboard.down('w');await b.waitForFunction(()=>GameDebug.view.own.speed>3);await b.keyboard.up('w');await b.waitForFunction(()=>GameDebug.view.own.speed<1);assert.notEqual(await a.evaluate(()=>GameDebug.engine.players[1].z),old);
+  await b.locator('[data-weapon="mg"]').click();const f=await b.locator('#fireButton').boundingBox();await b.mouse.move(f.x+f.width/2,f.y+f.height/2);await b.mouse.down();await a.waitForFunction(()=>GameDebug.engine.players[1].mg);await b.mouse.up();await a.waitForFunction(()=>!GameDebug.engine.players[1].mg);
+  await b.locator('[data-weapon="sam"]').click();await b.evaluate(()=>GameDebug.dispatch({type:'aim',yaw:1,pitch:.6},true));await b.locator('#fireButton').click();await b.waitForFunction(()=>GameDebug.view.shots.some(s=>s.id===GameDebug.view.own.pilot&&s.kind==='sam'));assert.ok(await a.evaluate(()=>GameDebug.engine.players[1].cd.sam>0));await b.locator('#returnVehicle').click();await b.waitForFunction(()=>GameDebug.view.own.pilot===null);
+  // Use a clear terrain lane so the test checks manual aim and replication,
+  // rather than relying on a random round's buildings or a homing missile.
+  await a.evaluate(()=>{const e=GameDebug.engine,B=Blindfire;for(const[p,x,z]of[[e.players[0],400,680],[e.players[1],400,1010]]){Object.assign(p,{x,z,y:B.terrain(x,z),speed:0});p.drive={throttle:0,steer:0};}e.shots=[];e.removeDead();});await b.waitForFunction(()=>Math.abs(GameDebug.view.own.z-1010)<.1);
+  const aim=await a.evaluate(()=>{const[a,b]=GameDebug.engine.players;return{yaw:Math.atan2(a.x-b.x,b.z-a.z),pitch:Math.atan2(a.y+3-(b.y+5.7),Blindfire.dist(a,b))};});await b.locator('[data-weapon="missile"]').click();await b.evaluate(aim=>GameDebug.dispatch({type:'aim',...aim},true),aim);await b.locator('#fireButton').click();await b.waitForFunction(()=>GameDebug.view.own.cd.missile>0&&GameDebug.view.own.pilot!==null);await b.waitForFunction(()=>GameDebug.renderer.cameraKey.startsWith('flight'));await a.waitForFunction(()=>GameDebug.view.own.hp===20,null,{timeout:10000});await b.waitForFunction(()=>GameDebug.view.own.stats.damage===80);assert.ok(await a.evaluate(()=>GameDebug.view.clues.some(c=>c.kind==='direction')));assert.equal(await b.evaluate(()=>GameDebug.view.enemy),null);assert.ok(frames>40);assert.ok(maxBytes<65536);
+  await b.evaluate(()=>GameDebug.returnMenu());await a.waitForSelector('#interruptedBack');assert.ok((await a.locator('#modalCard h3').textContent()).includes('中断'));assert.deepEqual(errors,[]);console.log('PASS two 3D clients: room, hidden intel, guest driving/MG/SAM/manual missile, chase camera, cooldown/damage synchronization and disconnect; max snapshot',maxBytes,'bytes');
+ }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1)});
