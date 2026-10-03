@@ -18,6 +18,7 @@ import org.json.*;
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/";
     private static final String REMOTE_API = "https://blindfire-arena.expert-eagle-6942.chatgpt.site/api/rooms/";
+    private static final boolean REMOTE_ENABLED = false;
     private static final int PORT = 42316;
     private WebView game;
     private RemoteHttp remoteHttp;
@@ -35,7 +36,7 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setAllowUniversalAccessFromFileURLs(false);
         s.setAllowFileAccessFromFileURLs(false); s.setMediaPlaybackRequiresUserGesture(false);
         game.setWebChromeClient(new WebChromeClient());
-        remoteHttp = new RemoteHttp(REMOTE_API, s.getUserAgentString(), new RemoteHttp.Listener() {
+        if (REMOTE_ENABLED) remoteHttp = new RemoteHttp(REMOTE_API, s.getUserAgentString(), new RemoteHttp.Listener() {
             public void response(String id,int status,String body,String error) {
                 final JSONObject e=new JSONObject();put(e,"id",id);put(e,"status",status);put(e,"body",body);put(e,"error",error);
                 runOnUiThread(new Runnable(){public void run(){if(game!=null)game.evaluateJavascript("window.onNativeRemoteResponse && window.onNativeRemoteResponse("+e.toString()+")",null);}});
@@ -44,7 +45,7 @@ public class MainActivity extends Activity {
         game.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.startsWith(REMOTE_API)) return null;
+                if (REMOTE_ENABLED && url.startsWith(REMOTE_API)) return null;
                 if (url.startsWith(ORIGIN)) {
                     String path = Uri.parse(url).getPath().substring("/assets/".length());
                     if (path.matches("[a-zA-Z0-9_./-]+") && !path.contains("..")) {
@@ -94,7 +95,14 @@ public class MainActivity extends Activity {
         return a;
     }
     public final class Bridge {
-        @JavascriptInterface public void remoteRequest(String id,String path,String body,int timeout) { if(remoteHttp!=null)remoteHttp.request(id,path,body,timeout); }
+        @JavascriptInterface public void remoteRequest(String id,String path,String body,int timeout) {
+            if (!REMOTE_ENABLED) {
+                final JSONObject e=new JSONObject();put(e,"id",id);put(e,"status",503);put(e,"body","");put(e,"error","远程联机暂时关闭");
+                runOnUiThread(new Runnable(){public void run(){if(game!=null)game.evaluateJavascript("window.onNativeRemoteResponse && window.onNativeRemoteResponse("+e.toString()+")",null);}});
+                return;
+            }
+            if(remoteHttp!=null)remoteHttp.request(id,path,body,timeout);
+        }
         @JavascriptInterface public void cancelRemoteRequest(String id) { if(remoteHttp!=null)remoteHttp.cancel(id); }
         @JavascriptInterface public void host() {
             synchronized(MainActivity.this) {

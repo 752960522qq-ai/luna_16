@@ -46,11 +46,11 @@ public final class LanLink {
                     BufferedWriter out = new BufferedWriter(new OutputStreamWriter(candidate.getOutputStream(), StandardCharsets.UTF_8));
                     String hello;
                     try { hello = boundedLine(in); } catch (IOException error) { candidate.close(); continue; }
-                    if (!("BLINDFIRE5 " + code).equals(hello)) {
+                    if (!("BLINDFIRE6 " + code).equals(hello)) {
                         out.write("DENIED\n"); out.flush(); candidate.close(); continue;
                     }
                     if (run != generation.get()) { candidate.close(); return; }
-                    out.write("BLINDFIRE5 OK\n"); out.flush();
+                    out.write("BLINDFIRE6 OK\n"); out.flush();
                     localServer.close(); localServer = null; server = null;
                     serve(candidate, in, out, run, true); return;
                 }
@@ -67,8 +67,8 @@ public final class LanLink {
                 if (run != generation.get()) { socket.close(); return; }
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                 BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-                out.write("BLINDFIRE5 " + code + "\n"); out.flush();
-                if (!"BLINDFIRE5 OK".equals(boundedLine(in))) { socket.close(); fail(run, "房间码错误，或游戏版本不一致。"); return; }
+                out.write("BLINDFIRE6 " + code + "\n"); out.flush();
+                if (!"BLINDFIRE6 OK".equals(boundedLine(in))) { socket.close(); fail(run, "房间码错误，或游戏版本不一致。"); return; }
                 serve(socket, in, out, run, false);
             } catch (IOException error) { try { socket.close(); } catch (IOException ignored) {} fail(run, "连接已结束，请核对地址、房间码与同一网络。"); }
         }}, "blindfire-join").start();

@@ -1,4 +1,4 @@
-import{REMOTE_ORIGIN}from'./net-config.js';
+import{REMOTE_ORIGIN,REMOTE_ENABLED}from'./net-config.js';
 const pending=new Map();let requestNumber=0;
 const requestPrefix=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
 window.onNativeRemoteResponse=e=>{const p=e&&pending.get(e.id);if(!p)return;pending.delete(e.id);p.resolve(e);};
@@ -17,9 +17,10 @@ function parseResponse(status,body){
 export class RemoteLink{
  constructor(emit){this.emit=emit;this.closed=false;this.role=null;this.code=null;this.key=null;this.queue=[];this.state=null;this.stateSeq=0;this.ack=0;this.seenState=0;this.connected=false;this.lastGood=performance.now();this.timer=null;this.inflight=null;this.rtt=0;this.feedback=[];this.feedbackSeq=0;this.seenFeedback=0;}
  async request(path,data,timeout=15000){
+  if(!REMOTE_ENABLED){const e=new Error('远程联机暂时关闭');e.status=503;throw e;}
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),timeout);this.inflight=abort;
   try{
-   const body=JSON.stringify({version:5,...data});
+   const body=JSON.stringify({version:6,...data});
    if(typeof window.Native?.remoteRequest==='function'){const r=await nativeRequest(path,body,abort.signal,timeout);if(r.error)throw new Error(r.error);return parseResponse(r.status,r.body);}
    // Simple CORS request: JSON text without the preflight blocked by the service gateway.
    const response=await fetch(REMOTE_ORIGIN+'/api/rooms/'+path,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,signal:abort.signal,cache:'no-store'});return parseResponse(response.status,await response.text());

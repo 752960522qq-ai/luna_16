@@ -1,5 +1,5 @@
 /* HTTPS relay. Each client owns a private token; only the guest's filtered view is relayed. */
-const VERSION=5,WAIT=600000,DEAD=25000,ACTIVE=120000,MAX=81920;
+const VERSION=6,WAIT=600000,DEAD=25000,ACTIVE=120000,MAX=81920;
 function token(bytes=24){return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),x=>x.toString(16).padStart(2,'0')).join('');}
 function code(){let n;do{n=crypto.getRandomValues(new Uint16Array(1))[0];}while(n>=60000);return String(n%10000).padStart(4,'0');}
 async function hash(value){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),x=>x.toString(16).padStart(2,'0')).join('');}
@@ -8,6 +8,7 @@ const statement=(db,sql,args=[])=>db.prepare(sql).bind(...args);
 function validCommand(p){return p&&p.type==='command'&&Number.isSafeInteger(p.seq)&&p.seq>0&&p.seq<1e9&&p.action&&['select','vehicle','pilot','artillery-mode','uav-orbit','control','aim','mg','detonate','fire'].includes(p.action.type)&&JSON.stringify(p).length<=1500;}
 function validState(s){const v=s&&s.view;return s&&s.type==='state'&&v&&v.version===VERSION&&v.own&&Number.isFinite(v.t)&&Number.isFinite(v.own.x)&&Number.isFinite(v.own.z)&&Array.isArray(v.shots)&&Array.isArray(v.sounds)&&JSON.stringify(s).length<=65536;}
 export async function rooms(request,env){
+ if(env.ROOMS_ENABLED!=='true')return result({error:'远程联机暂时关闭'},503);
  if(request.method==='OPTIONS')return result({ok:true});
  if(request.method!=='POST')return result({error:'请求方式不支持'},405);
  if(!env.DB)return result({error:'远程房间暂不可用，请稍后重试'},503);

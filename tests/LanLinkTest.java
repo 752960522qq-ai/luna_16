@@ -20,9 +20,9 @@ public class LanLinkTest {
             public void closed(String m){closed.countDown();}
         });
         host.host(0,"123456");if(!listening.await(4,TimeUnit.SECONDS))throw new AssertionError("host bind");
-        Socket bad=new Socket("127.0.0.1",port[0]);BufferedWriter writer=new BufferedWriter(new OutputStreamWriter(bad.getOutputStream(),"UTF-8"));writer.write("BLINDFIRE5 000000\n");writer.flush();
+        Socket bad=new Socket("127.0.0.1",port[0]);BufferedWriter writer=new BufferedWriter(new OutputStreamWriter(bad.getOutputStream(),"UTF-8"));writer.write("BLINDFIRE6 000000\n");writer.flush();
         if(!new BufferedReader(new InputStreamReader(bad.getInputStream(),"UTF-8")).readLine().equals("DENIED"))throw new AssertionError("room code rejection");bad.close();
-        Socket old=new Socket("127.0.0.1",port[0]);BufferedWriter legacy=new BufferedWriter(new OutputStreamWriter(old.getOutputStream(),"UTF-8"));legacy.write("BLINDFIRE3 123456\n");legacy.flush();
+        Socket old=new Socket("127.0.0.1",port[0]);BufferedWriter legacy=new BufferedWriter(new OutputStreamWriter(old.getOutputStream(),"UTF-8"));legacy.write("BLINDFIRE5 123456\n");legacy.flush();
         if(!"DENIED".equals(new BufferedReader(new InputStreamReader(old.getInputStream(),"UTF-8")).readLine()))throw new AssertionError("old version rejection");old.close();
         guest.join("127.0.0.1",port[0],"123456");if(!connected.await(4,TimeUnit.SECONDS))throw new AssertionError("connect after bad code");
         host.send("{\"type\":\"state\",\"text\":\"盲区交火\"}");guest.send("{\"type\":\"command\",\"x\":120}");

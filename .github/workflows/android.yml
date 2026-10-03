@@ -38,6 +38,13 @@ jobs:
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.6-native-remote-hard-ai-debug-apk
+          name: blindfire-v0.7-local-recon-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+      - name: Build TapTap H5 upload package
+        run: python3 scripts/build_h5.py --output build/blindfire-v0.7-taptap-h5.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blindfire-v0.7-taptap-h5
+          path: build/blindfire-v0.7-taptap-h5.zip
           retention-days: 30

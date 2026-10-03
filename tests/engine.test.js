@@ -1,15 +1,32 @@
 const assert=require('node:assert/strict');
-const {Engine,C,W,H,RECON_RANGE,INTEL_LIFE,terrain,dist,dist3,ballistic,muzzle,GRAVITY,SHELL_SPEED,TRAIL_LIFE,ARTILLERY,ORBIT_RADIUS}=require('../app/src/main/assets/engine.js');
+const {Engine,C,W,H,RECON_RANGE,RECON_RANGES,INTEL_LIFE,terrain,dist,dist3,ballistic,muzzle,GRAVITY,SHELL_SPEED,TRAIL_LIFE,ARTILLERY,ORBIT_RADIUS}=require('../app/src/main/assets/engine.js');
 let passed=0;
 function test(name,fn){fn();passed++;console.log('PASS',name);}
 function setup(opts={}){const e=new Engine({seed:42,mode:'lan',countdown:0,...opts});for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}return e;}
 function tick(e,time){for(let t=0;t<time-1e-8;t+=1/120)e.update(Math.min(1/120,time-t));}
 function weapon(e,id,k,yaw=0,pitch=.24){assert.equal(e.command(id,{type:'vehicle'}).ok,true);assert.equal(e.command(id,{type:'select',weapon:k}).ok,true);assert.equal(e.command(id,{type:'aim',yaw,pitch}).ok,true);}
 function target(e,position){weapon(e,1,'uav',0,.1);const r=e.command(1,{type:'fire'});const s=e.shots.find(s=>s.id===r.id);Object.assign(s,position,{speed:0});return s;}
-test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,5);}}assert.equal('decoy' in C,false);});
+test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,6);}}assert.equal('decoy' in C,false);});
 test('the physical field is exactly 2km by 2km and all spawns cover it',()=>{assert.equal(W,2000);assert.equal(H,2000);assert.equal(RECON_RANGE,300);assert.equal(INTEL_LIFE,5);const xs=[],zs=[];for(let seed=1;seed<=80;seed++){const e=new Engine({seed,mode:'lan'});for(const p of e.players){assert.ok(p.x>0&&p.x<W&&p.z>0&&p.z<H);xs.push(p.x);zs.push(p.z);}}assert.ok(Math.max(...xs)>1700&&Math.max(...zs)>1700);const e=setup(),p=e.players[0];Object.assign(p,{x:1990,z:1990,yaw:Math.PI/2,speed:33});e.command(0,{type:'control',throttle:1,steer:0});tick(e,.5);assert.ok(p.x<=1990);});
 test('vehicle 300m boundary reveals enemies and removes world/radar intel together after 5 seconds',()=>{const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(foe,{x:p.x,z:p.z-301,y:p.y});e.updateIntel();assert.equal(e.snapshot(0).enemy,null);foe.z=p.z-300;e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);const last=foe.z;foe.z=p.z-330;e.updateIntel();assert.equal(e.snapshot(0).enemy.z,last);tick(e,4.8);assert.ok(e.snapshot(0).enemy);tick(e,.25);assert.equal(e.snapshot(0).enemy,null);});
-test('both UAV and cruise missile share 300m reconnaissance even after returning to the vehicle',()=>{for(const k of ['uav','missile']){const e=setup(),foe=e.players[1];weapon(e,0,k);const r=e.command(0,{type:'fire'}),s=e.shots.find(s=>s.id===r.id);e.command(0,{type:'vehicle'});Object.assign(s,{x:foe.x+301,y:foe.y+4,z:foe.z,speed:0});e.updateIntel();assert.equal(e.snapshot(0).enemy,null);s.x=foe.x+300;e.updateIntel();assert.ok(e.snapshot(0).enemy);assert.equal(e.players[0].pilot,null);s.x=foe.x+301;e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,true);}});
+test('UAV 400m and cruise missile 200m boundaries preserve five-second intel from either camera',()=>{
+ for(const [kind,range]of[['uav',400],['missile',200]])for(const id of[0,1]){
+  const e=setup(),foe=e.players[1-id];weapon(e,id,kind);const r=e.command(id,{type:'fire'}),s=e.shots.find(s=>s.id===r.id);
+  Object.assign(s,{x:foe.x+range+1,y:foe.y+4,z:foe.z,speed:0,pitch:0});e.updateIntel();assert.equal(e.snapshot(id).enemy,null);
+  s.x=foe.x+range;e.updateIntel();assert.equal(e.snapshot(id).enemy.retained,false);assert.equal(e.snapshot(id).own.pilot,r.id);
+  e.command(id,{type:'vehicle'});e.updateIntel();assert.equal(e.snapshot(id).enemy.retained,false);
+  const last=foe.x;s.x=foe.x+range+1;foe.z-=5;e.updateIntel();assert.equal(e.snapshot(id).enemy.retained,true);assert.equal(e.snapshot(id).enemy.x,last);
+  s.hp=0;e.removeDead();tick(e,4.8);assert.ok(e.snapshot(id).enemy);tick(e,.25);assert.equal(e.snapshot(id).enemy,null);
+  assert.deepEqual(e.snapshot(id).field.reconRanges,RECON_RANGES);
+ }
+});
+test('overlapping vehicle, UAV and missile recon expires only after every live sensor loses contact',()=>{
+ const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(p,{x:1000,z:1600,y:terrain(1000,1600)});Object.assign(foe,{x:1000,z:1100,y:terrain(1000,1100)});
+ weapon(e,0,'uav');const uid=e.command(0,{type:'fire'}).id,u=e.shots.find(s=>s.id===uid);Object.assign(u,{x:1300,y:foe.y+4,z:foe.z,speed:0,pitch:0});
+ weapon(e,0,'missile');const mid=e.command(0,{type:'fire'}).id,m=e.shots.find(s=>s.id===mid);Object.assign(m,{x:1199,y:foe.y+4,z:foe.z,speed:0,pitch:0});e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);
+ u.hp=0;e.removeDead();e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);
+ m.x=1201;e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,true);Object.assign(p,{z:1400,y:foe.y});e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);
+});
 test('continuous detection refreshes the five-second clock and reacquisition refreshes stale intel',()=>{const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(foe,{x:p.x+100,z:p.z,y:terrain(p.x+100,p.z)});tick(e,6);assert.ok(e.snapshot(0).enemy);assert.equal(e.snapshot(0).enemy.retained,false);foe.x=p.x+400;tick(e,3);assert.ok(e.snapshot(0).enemy.left<2.1);foe.x=p.x+100;tick(e,.05);assert.equal(e.snapshot(0).enemy.retained,false);assert.ok(e.snapshot(0).enemy.left>4.9);foe.x=p.x+400;tick(e,4.9);assert.ok(e.snapshot(0).enemy);tick(e,.2);assert.equal(e.snapshot(0).enemy,null);});
 test('detected enemy air contacts retain only their last known pose for 5 seconds',()=>{const e=setup(),p=e.players[0],q=target(e,{x:p.x,y:p.y+40,z:p.z-200});e.updateIntel();const seen=e.snapshot(0).shots.find(s=>s.id===q.id);assert.ok(seen&&!seen.mine);q.x=p.x+700;e.updateIntel();const retained=e.snapshot(0).shots.find(s=>s.id===q.id);assert.equal(retained.x,seen.x);assert.equal(retained.retained,true);q.hp=0;e.removeDead();tick(e,4.9);assert.ok(e.snapshot(0).shots.some(s=>s.id===q.id));tick(e,.2);assert.equal(e.snapshot(0).shots.some(s=>s.id===q.id),false);});
 test('manual drive, terrain height, input timeout and moving fire restriction',()=>{const e=setup(),p=e.players[0],z=p.z;e.command(0,{type:'control',throttle:1,steer:.2});tick(e,.3);assert.ok(p.z<z-3);assert.ok(p.yaw>0);assert.equal(p.y,terrain(p.x,p.z));assert.equal(e.command(0,{type:'fire'}).ok,false);tick(e,1.6);assert.equal(p.drive.throttle,0);assert.ok(p.speed<1);});
