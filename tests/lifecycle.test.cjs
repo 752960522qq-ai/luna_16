@@ -42,7 +42,7 @@ const { open } = require('./browser-helpers.cjs');
   }
   try {
     await page.goto(url);
-    await page.waitForFunction(() => window.GameDebug && GameDebug.renderer.ready);
+    await page.waitForFunction(() => window.GameDebug && GameDebug.renderer.ready&&GameDebug.renderer.modelsReady);
     await check('the first joystick finger keeps control when another finger touches it', async () => {
       await start(); const j = await page.locator('#joystick').boundingBox(), x = j.x + j.width / 2, y = j.y + j.height / 2;
       await point('touchStart', 1, x, y - 35);

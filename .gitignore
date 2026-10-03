@@ -10,3 +10,8 @@ local.properties
 *.zip
 node_modules/
 test-output/
+
+web/node_modules/
+web/dist/
+web/public/
+web/.openai/

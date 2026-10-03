@@ -18,8 +18,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Remote room checks
+        run: node tests/remote-server.test.mjs
       - name: Rules checks
         run: node tests/engine.test.js
+      - name: Model checks
+        run: python3 tests/models.test.py
       - name: LAN transport checks
         run: |
           javac -encoding UTF-8 -d /tmp/blindfire-tests app/src/main/java/com/luna/blindfire/LanLink.java tests/LanLinkTest.java
@@ -28,6 +35,6 @@ jobs:
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.3.1-2km-debug-apk
+          name: blindfire-v0.5-remote-multiplayer-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30

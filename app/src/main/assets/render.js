@@ -1,4 +1,5 @@
 import * as THREE from './three.module.js';
+import { GLTFLoader } from './GLTFLoader.js';
 const B = window.Blindfire, FORWARD = new THREE.Vector3(0, 0, -1);
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, ...opts });
 const palette = { body: mat('#496153'), hostile: mat('#785049'), hostileAir: mat('#905b50'), trim: mat('#273b35'), dark: mat('#1b2729'), steel: mat('#7c8b82'), glass: mat('#14343e'), tire: mat('#202425'), white: mat('#edf1d9'), sand: mat('#c2bca0'), roof: mat('#8b8571'), flame: new THREE.MeshBasicMaterial({color:'#ffb461'}), bullet: new THREE.MeshBasicMaterial({color:'#ffeabd'}) };
@@ -64,18 +65,28 @@ function aircraft(kind,hostile){
 }
 export class Renderer{
   constructor(canvas,mini){
-    this.canvas=canvas;this.mini=mini;this.miniCtx=mini.getContext('2d');this.meshes=new Map();this.trailMeshes=new Map();this.effectMeshes=new Map();this.ready=false;this.cameraKey=null;
+    this.canvas=canvas;this.mini=mini;this.miniCtx=mini.getContext('2d');this.meshes=new Map();this.trailMeshes=new Map();this.effectMeshes=new Map();this.ready=false;this.cameraKey=null;this.modelsReady=false;
     try{
       this.gl=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance',alpha:false});this.gl.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.gl.outputColorSpace=THREE.SRGBColorSpace;
       this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#b8cbd0');this.scene.fog=new THREE.Fog('#b8c5ba',230,2400);this.camera=new THREE.PerspectiveCamera(62,1,.35,4000);
       this.scene.add(new THREE.HemisphereLight('#ddeef1','#484535',2.1));const sun=new THREE.DirectionalLight('#fff0d2',2.3);sun.position.set(-240,520,-250);this.scene.add(sun);
       this.createLandscape();this.ownTruck=truck();this.enemyTruck=truck(true);this.scene.add(this.ownTruck,this.enemyTruck);this.enemyTruck.visible=false;
+      this.modelsPromise=this.loadVehicles().catch(e=>{this.modelError=String(e);console.error('Vehicle model unavailable',e);const panel=document.getElementById('graphicsError');panel.querySelector('h3').textContent='车辆模型载入失败';panel.querySelector('p').textContent='请重新打开游戏后重试。';panel.classList.remove('hidden');});
       this.arc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:'#d3ffe6',dashSize:7,gapSize:4,transparent:true,opacity:.9}));this.scene.add(this.arc);
       this.hitRing=new THREE.Mesh(new THREE.RingGeometry(6,7.5,32),new THREE.MeshBasicMaterial({color:'#d3ffe6',side:THREE.DoubleSide,transparent:true,opacity:.9}));this.hitRing.rotation.x=-Math.PI/2;this.scene.add(this.hitRing);
       this.enemyMarker=new THREE.Group();const ring=new THREE.Mesh(new THREE.RingGeometry(10,11.2,32),new THREE.MeshBasicMaterial({color:'#ffad7f',side:THREE.DoubleSide,depthTest:false,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=10;this.enemyMarker.add(ring);const pin=new THREE.Mesh(new THREE.OctahedronGeometry(2.2),new THREE.MeshBasicMaterial({color:'#ffad7f',depthTest:false,depthWrite:false}));pin.position.y=21;pin.renderOrder=10;this.enemyMarker.add(pin);this.scene.add(this.enemyMarker);
       this.ready=true;this.resize();canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.ready=false;document.getElementById('graphicsError').classList.remove('hidden');});canvas.addEventListener('webglcontextrestored',()=>location.reload());
     }catch(e){console.error('3D renderer unavailable',e);document.getElementById('graphicsError').classList.remove('hidden');}
     window.addEventListener('resize',()=>this.resize());
+  }
+  async loadVehicles(){
+    const loader=new GLTFLoader(),models=await Promise.all(['friendly','enemy'].map(k=>loader.loadAsync(`models/m1097_${k}.glb`)));
+    for(let i=0;i<models.length;i++){
+      const scene=models[i].scene,bounds=new THREE.Box3().setFromObject(scene),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
+      scene.position.add(new THREE.Vector3(-center.x,-bounds.min.y,-center.z));const model=new THREE.Group();model.rotation.y=Math.PI/2;model.scale.setScalar(14/size.x);model.add(scene);
+      const g=i===0?this.ownTruck:this.enemyTruck;this.disposeGroup(g);g.clear();g.add(model);g.userData={model:true,source:'M1097 Avenger',patches:2};
+    }
+    this.modelsReady=true;
   }
   createLandscape(){
     const geo=new THREE.PlaneGeometry(B.W+1000,B.H+1000,140,140);geo.rotateX(-Math.PI/2);geo.translate(B.W/2,0,B.H/2);const pos=geo.attributes.position,colors=[];
@@ -97,7 +108,7 @@ export class Renderer{
   }
   resize(){if(!this.ready)return;this.gl.setSize(innerWidth,innerHeight,false);this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
   orient(g,s){g.position.set(s.x,s.y,s.z);g.rotation.set(s.pitch,-s.yaw,0,'YXZ');}
-  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=t*p.speed/1.65;}
+  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model)return;const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=t*p.speed/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;const demo=!view;
     const p=view?view.own:{x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};
     this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;
@@ -110,22 +121,24 @@ export class Renderer{
     const effectIds=new Set();for(const e of view?view.effects:[]){effectIds.add(e.id);let g=this.effectMeshes.get(e.id);if(!g){if(e.kind==='crater'){g=new THREE.Mesh(new THREE.CircleGeometry(e.radius,16),new THREE.MeshBasicMaterial({color:'#4b473b',transparent:true,opacity:.4,depthWrite:false}));g.rotation.x=-Math.PI/2;}else g=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshBasicMaterial({color:e.kind==='spark'?'#fff4bf':'#ffc570',transparent:true,opacity:.8,depthWrite:false}));this.effectMeshes.set(e.id,g);this.scene.add(g);}g.position.set(e.x,e.y,e.z);if(e.kind!=='crater'){g.scale.setScalar(Math.max(.2,e.radius*(.2+e.age*.8)));g.material.opacity=Math.max(0,.7*(1-e.age/e.life));}}
     for(const[id,g]of this.effectMeshes)if(!effectIds.has(id)){this.scene.remove(g);g.geometry.dispose();g.material.dispose();this.effectMeshes.delete(id);}
     const pilot=view&&view.shots.find(s=>s.id===p.pilot&&s.mine);this.arc.visible=!demo&&!pilot&&p.selected==='artillery';this.hitRing.visible=this.arc.visible;
-    if(this.arc.visible){const arc=B.ballistic(p);this.arc.geometry.dispose();this.arc.geometry=new THREE.BufferGeometry().setFromPoints(arc.points.map(q=>new THREE.Vector3(q.x,q.y,q.z)));this.arc.computeLineDistances();this.hitRing.visible=!!arc.hit;if(arc.hit)this.hitRing.position.set(arc.hit.x,arc.hit.y+.35,arc.hit.z);}
+    this.lastArc=this.arc.visible?B.ballistic(p):null;
+    if(this.arc.visible){const arc=this.lastArc;this.arc.geometry.dispose();this.arc.geometry=new THREE.BufferGeometry().setFromPoints(arc.points.map(q=>new THREE.Vector3(q.x,q.y,q.z)));this.arc.computeLineDistances();this.hitRing.visible=!!arc.hit;if(arc.hit)this.hitRing.position.set(arc.hit.x,arc.hit.y+.35,arc.hit.z);}
     const desired=new THREE.Vector3(),target=new THREE.Vector3();let key;
     if(demo){desired.set(145+Math.sin(t*.07)*25,60,998);target.set(242,15,846);key='demo';this.camera.fov=55;}
     else if(pilot){const d=B.direction(pilot.yaw,pilot.pitch),back=pilot.kind==='uav'?28:20;desired.set(pilot.x-d.x*back,pilot.y-d.y*back+10,pilot.z-d.z*back);desired.y=Math.max(desired.y,B.terrain(desired.x,desired.z)+4);target.set(pilot.x+d.x*45,pilot.y+d.y*45-3,pilot.z+d.z*45);key='flight'+pilot.id;this.camera.fov=68;}
-    else{const a=p.selected==='sam'?{yaw:p.yaw,pitch:B.DEFAULT_PITCH.sam}:p.aim[p.selected],d=B.direction(a.yaw,0),side=p.selected==='artillery'?10:0;desired.set(p.x-d.x*48+Math.cos(a.yaw)*side,p.y+29,p.z-d.z*48+Math.sin(a.yaw)*side);target.set(p.x+d.x*48,p.y+7+Math.sin(a.pitch-B.DEFAULT_PITCH[p.selected])*110,p.z+d.z*48);key='truck';this.camera.fov=62;}
+    else{const a=p.selected==='sam'?{yaw:p.yaw,pitch:B.DEFAULT_PITCH.sam}:p.aim[p.selected],d=B.direction(a.yaw,0),side=p.selected==='artillery'?10:0,basePitch=p.selected==='artillery'?B.artilleryParams(p).defaultPitch:B.DEFAULT_PITCH[p.selected];desired.set(p.x-d.x*38+Math.cos(a.yaw)*side,p.y+22,p.z-d.z*38+Math.sin(a.yaw)*side);target.set(p.x+d.x*48,p.y+7+Math.sin(a.pitch-basePitch)*110,p.z+d.z*48);key='truck';this.camera.fov=62;}
     if(key!==this.cameraKey){this.camera.position.copy(desired);this.look=target.clone();this.cameraKey=key;}else{this.camera.position.lerp(desired,1-Math.exp(-dt*11));this.look.lerp(target,1-Math.exp(-dt*13));}this.camera.lookAt(this.look);this.camera.updateProjectionMatrix();this.gl.render(this.scene,this.camera);
-    if(view){this.drawMini(view);this.updateReticle(p,pilot);this.drawScope(p,!pilot&&p.selected==='artillery');}
+    if(view){this.drawMini(view);this.updateReticle(p,pilot);this.drawScope(p,this.lastArc);}
   }
   updateReticle(p,pilot){const a=pilot||p.aim[p.selected],d=B.direction(a.yaw,a.pitch),m=pilot||B.muzzle(p,p.selected),q=new THREE.Vector3(m.x+d.x*300,m.y+d.y*300,m.z+d.z*300).project(this.camera),el=document.getElementById('reticle');el.style.left=`${B.clamp((q.x*.5+.5)*100,5,95)}%`;el.style.top=`${B.clamp((-q.y*.5+.5)*100,15,72)}%`;
     el.classList.toggle('hidden',!pilot&&p.selected==='sam');
     if(p.selected==='artillery'&&!pilot&&this.hitRing.visible){const v=this.hitRing.position.clone().project(this.camera),impact=document.getElementById('impactLabel'),x=(v.x*.5+.5)*innerWidth,y=(-v.y*.5+.5)*innerHeight,r=document.getElementById('ballisticPanel').getBoundingClientRect();const covered=x>r.left-45&&x<r.right+45&&y+14>r.top&&y<r.bottom;impact.classList.toggle('hidden',covered||v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1);impact.style.left=`${(v.x*.5+.5)*100}%`;impact.style.top=`${(-v.y*.5+.5)*100}%`;}else document.getElementById('impactLabel').classList.add('hidden');
   }
-  drawScope(p,visible){const panel=document.getElementById('ballisticPanel');panel.classList.toggle('hidden',!visible);if(!visible)return;const canvas=document.getElementById('ballisticScope'),c=canvas.getContext('2d'),arc=B.ballistic(p),start=arc.points[0],range=B.dist(start,arc.points[arc.points.length-1])||1,maxY=Math.max(...arc.points.map(q=>q.y))-start.y+20;c.clearRect(0,0,240,116);c.strokeStyle='#739783';c.lineWidth=1;c.beginPath();c.moveTo(12,94);c.lineTo(228,94);c.stroke();c.strokeStyle='#c7ffd9';c.lineWidth=2;c.beginPath();arc.points.forEach((q,i)=>{const x=12+B.dist(start,q)/range*216,y=90-(q.y-start.y)/maxY*73;if(i)c.lineTo(x,y);else c.moveTo(x,y);});c.stroke();c.font='16px monospace';c.fillStyle='#bdd5b7';c.fillText(arc.range===null?'OUT':`${arc.range.toFixed(0)} m / ${arc.time.toFixed(1)} s`,12,112);}
+  drawScope(p,arc){const panel=document.getElementById('ballisticPanel');panel.classList.toggle('hidden',!arc);if(!arc)return;panel.querySelector('span').textContent=p.artilleryMode==='direct'?'平射弹道':'曲射弹道';const canvas=document.getElementById('ballisticScope'),c=canvas.getContext('2d'),start=arc.points[0],range=B.dist(start,arc.points[arc.points.length-1])||1,maxY=Math.max(...arc.points.map(q=>q.y))-start.y+20;c.clearRect(0,0,240,116);c.strokeStyle='#739783';c.lineWidth=1;c.beginPath();c.moveTo(12,94);c.lineTo(228,94);c.stroke();c.strokeStyle='#c7ffd9';c.lineWidth=2;c.beginPath();arc.points.forEach((q,i)=>{const x=12+B.dist(start,q)/range*216,y=90-(q.y-start.y)/maxY*73;if(i)c.lineTo(x,y);else c.moveTo(x,y);});c.stroke();c.font='16px monospace';c.fillStyle='#bdd5b7';c.fillText(arc.range===null?'OUT':`${arc.range.toFixed(0)} m / ${arc.time.toFixed(1)} s`,12,112);}
   drawMini(v){const c=this.miniCtx,w=228,h=228,sc=200/B.W,own=v.own;c.clearRect(0,0,w,h);c.save();c.fillStyle='rgba(13,30,28,.9)';c.fillRect(0,0,w,h);c.beginPath();c.rect(14,14,200,200);c.clip();const map=q=>({x:14+q.x*sc,y:14+q.z*sc});this.mapPoint=map;c.strokeStyle='#436052';c.lineWidth=1;
     for(let x=0;x<=B.W;x+=250){const a=map({x,z:0}),b=map({x,z:B.H});c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}for(let z=0;z<=B.H;z+=250){const a=map({x:0,z}),b=map({x:B.W,z});c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
     c.strokeStyle='#8fe9ad77';for(const s of[own,...v.shots.filter(s=>s.mine&&['uav','missile'].includes(s.kind))]){const q=map(s);c.beginPath();c.arc(q.x,q.y,B.RECON_RANGE*sc,0,Math.PI*2);c.stroke();}
+    for(const s of v.shots.filter(s=>s.mine&&s.kind==='uav'&&s.orbit)){const q=map(s.orbit);c.strokeStyle='#86d9ef';c.setLineDash([3,2]);c.beginPath();c.arc(q.x,q.y,s.orbit.radius*sc,0,Math.PI*2);c.stroke();c.setLineDash([]);}
     for(const b of B.BUILDINGS){const q=map(b);c.fillStyle='#8d927a';c.fillRect(q.x-b.w*sc/2,q.y-b.d*sc/2,b.w*sc,b.d*sc);}
     for(const clue of v.clues){const q=map(clue);c.fillStyle='rgba(229,179,99,.16)';c.beginPath();if(clue.kind==='probe')c.arc(q.x,q.y,clue.radius*sc,0,Math.PI*2);else{c.moveTo(q.x,q.y);c.arc(q.x,q.y,clue.radius*sc,clue.yaw-Math.PI/2-clue.spread,clue.yaw-Math.PI/2+clue.spread);c.closePath();}c.fill();}
     for(const tr of v.trails){c.strokeStyle=tr.mine?'#a9cdbd':'#e8d4b2';c.lineWidth=1;c.beginPath();tr.points.forEach((p,i)=>{const q=map(p);if(i)c.lineTo(q.x,q.y);else c.moveTo(q.x,q.y);});c.stroke();}
@@ -134,5 +147,5 @@ export class Renderer{
     const q=map(own);c.save();c.translate(q.x,q.y);c.rotate(own.yaw);c.fillStyle='#d0ffe0';c.beginPath();c.moveTo(0,-8);c.lineTo(-5,6);c.lineTo(0,3);c.lineTo(5,6);c.closePath();c.fill();c.restore();c.restore();c.strokeStyle='#799185';c.lineWidth=2;c.strokeRect(13,13,202,202);c.font='13px monospace';c.fillStyle='#c6d8c7';c.textAlign='center';c.fillText('N',w/2,12);
   }
   disposeGroup(g){g.traverse(m=>{if(m.geometry)m.geometry.dispose();});}
-  get stats(){return this.ready?{webgl:true,calls:this.gl.info.render.calls,triangles:this.gl.info.render.triangles}:{webgl:false};}
+  get stats(){return this.ready?{webgl:true,models:this.modelsReady,calls:this.gl.info.render.calls,triangles:this.gl.info.render.triangles}:{webgl:false};}
 }

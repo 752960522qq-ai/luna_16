@@ -17,6 +17,7 @@ import org.json.*;
 
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/";
+    private static final String REMOTE_API = "https://blindfire-arena.expert-eagle-6942.chatgpt.site/api/rooms/";
     private static final int PORT = 42316;
     private WebView game;
     private volatile LanLink link;
@@ -36,11 +37,12 @@ public class MainActivity extends Activity {
         game.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+                if (url.startsWith(REMOTE_API)) return null;
                 if (url.startsWith(ORIGIN)) {
                     String path = Uri.parse(url).getPath().substring("/assets/".length());
                     if (path.matches("[a-zA-Z0-9_./-]+") && !path.contains("..")) {
                         try {
-                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".woff") ? "font/woff" : "text/html";
+                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".glb") ? "model/gltf-binary" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".woff") ? "font/woff" : "text/html";
                             return new WebResourceResponse(mime, "UTF-8", getAssets().open(path));
                         } catch (IOException ignored) {}
                     }
