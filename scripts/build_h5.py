@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a self-contained TapTap H5 upload ZIP with index.html at its root."""
+"""Build a TapTap H5 ZIP with one root folder containing index.html."""
 import argparse
 import shutil
 import zipfile
@@ -23,11 +23,15 @@ text = text.replace('第三人称战术对战', '第三人称战术训练')
 index.write_text(text, encoding='utf-8')
 output = Path(args.output).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
+package_root = 'blindfire'
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    folder = zipfile.ZipInfo(f'{package_root}/', date_time=(2026, 10, 3, 0, 0, 0))
+    folder.external_attr = (0o40755 << 16) | 0x10
+    archive.writestr(folder, b'')
     for file in sorted(stage.rglob('*')):
         if file.is_file():
-            info = zipfile.ZipInfo(file.relative_to(stage).as_posix(), date_time=(2026, 10, 3, 0, 0, 0))
+            info = zipfile.ZipInfo(f'{package_root}/{file.relative_to(stage).as_posix()}', date_time=(2026, 10, 3, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, file.read_bytes())
-print(f'H5 upload ZIP built: {output} ({output.stat().st_size} bytes); entry: index.html; preview: {stage}')
+print(f'H5 upload ZIP built: {output} ({output.stat().st_size} bytes); entry: {package_root}/index.html; preview: {stage}')
