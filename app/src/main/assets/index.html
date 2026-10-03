@@ -21,13 +21,13 @@
  <div class="menu-bottom"><div class="difficulty"><span>训练难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button></div>
  <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span><svg><use href="#i-arrow"/></svg></button>
  <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同一 Wi-Fi / 热点</small></button>
- <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>MANUAL COMBAT · v0.2</span></div></div>
+ <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.3</span></div></div>
 </main>
 <main id="battle" class="screen battle hidden">
  <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
  <div class="health"><span>发射车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div>
  <div class="intel-panel"><span class="eyebrow">CONTACT / INTEL</span><div id="intelBadge" class="intel-badge">敌情未知</div><div id="threatAlert" class="hidden">空中威胁</div></div>
- <div class="mini-wrap"><canvas id="mini" aria-label="小型情报雷达"></canvas><span>情报雷达 · 北向上</span></div>
+ <div class="mini-wrap"><canvas id="mini" aria-label="小型情报雷达"></canvas><span>2km × 2km · 北向上</span></div>
  <div id="cameraBadge" class="camera-badge"><i></i><span>发射车 / 第三人称</span></div>
  <div id="ballisticPanel" class="ballistic-panel hidden"><span>弹道剖面</span><canvas id="ballisticScope" width="240" height="116" aria-label="火炮抛物线剖面"></canvas></div>
  <div id="reticle" class="reticle"><i></i><b></b><span></span></div><div id="impactLabel" class="impact-label hidden">预计落点</div>

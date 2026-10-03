@@ -11,3 +11,4 @@
 .ballistic-panel{position:absolute;right:20px;top:249px;background:#173027b3;border:1px solid #9abc8d55;border-radius:3px;padding:6px 7px;width:128px}.ballistic-panel>span{display:block;font-size:8px;color:#c6dcb7}.ballistic-panel canvas{display:block;width:112px;height:54px}
 @media(max-height:720px){.ballistic-panel{top:218px;right:18px;width:118px}.ballistic-panel canvas{width:102px;height:49px}}
 .menu-foot button{font-family:BFUI,sans-serif}
+.mini-wrap canvas{border-radius:4px}
