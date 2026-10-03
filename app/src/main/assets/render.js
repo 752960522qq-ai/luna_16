@@ -6,17 +6,47 @@ function box(g,x,y,z,w,h,d,material){const m=new THREE.Mesh(new THREE.BoxGeometr
 function cylinder(g,x,y,z,top,bottom,h,material,sides=10){const m=new THREE.Mesh(new THREE.CylinderGeometry(top,bottom,h,sides),material);m.position.set(x,y,z);g.add(m);return m;}
 function truck(hostile=false){
   const g=new THREE.Group(),body=hostile?palette.hostile:palette.body;
-  box(g,0,2.1,0,8.5,1.7,19,palette.dark);box(g,0,3.4,-5.8,8.7,3,6.6,body);box(g,0,5.6,-6.2,8.3,1.3,5.4,body);
-  box(g,0,5.2,-9.56,6.7,1.6,.12,palette.glass);for(const x of[-4.38,4.38])box(g,x,5.2,-6.6,.12,1.5,2.7,palette.glass);
-  box(g,0,2.65,-9.7,8.9,.5,.5,palette.steel);box(g,0,3.25,-9.68,4.8,.65,.14,palette.dark);for(const x of[-3.3,3.3])box(g,x,3.2,-9.77,1.15,.65,.14,palette.white);
-  box(g,0,3.2,4,8,1,11,body);box(g,0,4.1,2,5.5,1,6,palette.trim);
-  const turret=new THREE.Group();turret.position.set(0,4.7,1.5);g.add(turret);cylinder(turret,0,0,0,2.7,2.7,.9,palette.steel);
-  const arm=new THREE.Group();arm.position.y=.7;turret.add(arm);box(arm,0,0,1,5.3,1,8,body);
-  for(const x of[-1.5,1.5]){const tube=cylinder(arm,x,.9,0,.8,.8,10,palette.trim);tube.rotation.x=Math.PI/2;box(arm,x,.9,-5.1,1.4,1.4,.15,palette.dark);}
-  const gun=cylinder(arm,0,1.4,-5,.37,.48,8,palette.steel);gun.rotation.x=Math.PI/2;
-  const mg=new THREE.Group();mg.position.set(3,1.2,0);turret.add(mg);box(mg,0,0,-1,.6,.6,4,palette.dark);box(mg,0,-.6,.1,1,.8,1,body);
-  const wheels=[];for(const x of[-4.2,4.2])for(const z of[-6,-2,3,7]){const wheel=cylinder(g,x,1.45,z,1.65,1.65,1.1,palette.tire,12);wheel.rotation.z=Math.PI/2;wheels.push(wheel);const hub=cylinder(g,x+Math.sign(x)*.6,1.45,z,.8,.8,.12,palette.steel);hub.rotation.z=Math.PI/2;}
-  const antenna=cylinder(g,-3,7,3,.035,.035,5,palette.dark,4);antenna.rotation.z=-.06;for(const x of[-4.48,4.48])box(g,x,3.1,6,.15,1.3,3,palette.steel);
+  // 8x8 chassis + armored cab. Keep original overall dimensions so hitboxes/camera remain unchanged.
+  box(g,0,2.05,0,8.5,1.25,19.2,palette.dark);box(g,0,2.95,3.9,8.15,.8,11.1,body);
+  box(g,0,3.65,-6.15,8.35,2.7,6.6,body);const roof=box(g,0,5.75,-6.0,8.05,1.15,5.6,body);roof.rotation.x=.055;
+  // Split windshield, side glass, door seams and mirrors.
+  for(const x of[-2.0,2.0]){const w=box(g,x,5.18,-9.48,3.5,1.4,.12,palette.glass);w.rotation.x=.055;}
+  box(g,0,5.18,-9.55,.2,1.55,.16,palette.dark);for(const x of[-4.2,4.2]){box(g,x,5.05,-6.45,.12,1.35,2.5,palette.glass);box(g,x,4.15,-4.9,.13,2.35,.16,palette.dark);box(g,x,4.3,-5.2,.18,.18,.75,palette.steel);}
+  for(const x of[-4.72,4.72]){box(g,x,5.2,-7.55,.08,1.1,.08,palette.dark);box(g,x,5.65,-7.9,.48,.7,.18,palette.dark);}
+  // Front bumper, grille, lamps and towing points.
+  box(g,0,2.55,-9.78,8.9,.5,.55,palette.steel);box(g,0,3.35,-9.72,5.4,.92,.18,palette.dark);
+  for(const x of[-2.2,-1.45,-.72,0,.72,1.45,2.2])box(g,x,3.35,-9.83,.13,.68,.2,palette.steel);
+  for(const x of[-3.25,3.25]){const lamp=cylinder(g,x,3.35,-9.88,.47,.47,.15,palette.white,24);lamp.rotation.x=Math.PI/2;const marker=cylinder(g,x,2.8,-9.89,.23,.23,.13,palette.steel,20);marker.rotation.x=Math.PI/2;}
+  // Rear equipment deck, storage bins, steps and mud guards.
+  box(g,0,3.55,4.8,7.75,.7,8.6,body);box(g,0,4.05,7.55,5.2,.75,2.0,palette.trim);
+  for(const x of[-3.65,3.65]){box(g,x,3.72,5.1,.95,1.15,3.8,palette.trim);box(g,x,2.25,-5.25,.75,.18,3.0,palette.steel);box(g,x,1.82,8.55,1.45,1.35,.14,palette.dark);}
+  for(const x of[-4.55,4.55])box(g,x,2.58,.3,.5,.22,17.0,body);
+  box(g,0,2.55,9.72,8.65,.45,.45,palette.steel);
+  // High-detail rotating launcher pedestal.
+  const turret=new THREE.Group();turret.position.set(0,4.55,1.25);g.add(turret);cylinder(turret,0,0,0,2.85,2.85,.85,palette.steel,36);cylinder(turret,0,.62,0,2.45,2.45,.45,body,36);
+  const arm=new THREE.Group();arm.position.y=1.05;turret.add(arm);box(arm,0,0,.9,5.45,.9,8.2,body);
+  for(const x of[-2.55,2.55])box(arm,x,.15,.65,.32,1.35,6.9,palette.steel);
+  // Twin launch tubes, reinforcing collars and rear caps.
+  for(const x of[-1.55,1.55]){
+    const tube=cylinder(arm,x,.85,0,.84,.84,10,palette.trim,36);tube.rotation.x=Math.PI/2;
+    for(const z of[-4.2,-1.5,1.5,4.2]){const ring=cylinder(arm,x,.85,z,.92,.92,.22,palette.steel,36);ring.rotation.x=Math.PI/2;}
+    const front=cylinder(arm,x,.85,-5.12,.76,.76,.24,palette.dark,36);front.rotation.x=Math.PI/2;
+    const rear=cylinder(arm,x,.85,5.12,.74,.74,.20,palette.steel,36);rear.rotation.x=Math.PI/2;
+  }
+  // Manually aimed artillery tube between launchers.
+  const gun=cylinder(arm,0,1.4,-.4,.34,.34,8.8,palette.steel,28);gun.rotation.x=Math.PI/2;const muzzle=cylinder(arm,0,1.4,-4.95,.46,.46,.44,palette.dark,28);muzzle.rotation.x=Math.PI/2;const breech=cylinder(arm,0,1.4,3.7,.49,.49,1.0,palette.dark,28);breech.rotation.x=Math.PI/2;
+  // Roof machine gun remains a separate animated group.
+  const mg=new THREE.Group();mg.position.set(3.05,1.55,.9);turret.add(mg);box(mg,0,0,.55,.62,.58,1.45,palette.dark);box(mg,.52,-.2,.6,.72,.5,.34,palette.steel);const mgBarrel=cylinder(mg,0,0,-1.55,.13,.13,4.4,palette.dark,20);mgBarrel.rotation.x=Math.PI/2;box(mg,0,-.55,1.3,1.15,.72,1.1,body);
+  // Roof hatch, optics, exhaust and antennas.
+  cylinder(g,-2.7,6.42,-4.6,.75,.75,.18,body,28);cylinder(g,-2.7,6.82,-4.6,.22,.22,.68,palette.steel,20);
+  const exhaust=cylinder(g,-3.7,4.85,7.4,.22,.22,4.2,palette.dark,20);const cap=cylinder(g,-3.7,6.96,7.4,.28,.28,.38,palette.steel,20);
+  for(const [x,z,h] of [[-3.2,3,5.3],[3.25,4,3.7]]){cylinder(g,x,7+h/2,z,.045,.045,h,palette.dark,8);cylinder(g,x,7,z,.1,.1,.24,palette.steel,16);}
+  // Higher-poly wheels with separate rims/hubs.
+  const wheels=[];for(const x of[-4.25,4.25])for(const z of[-6.2,-2.1,2.9,7.0]){
+    const wheel=cylinder(g,x,1.45,z,1.62,1.62,1.18,palette.tire,32);wheel.rotation.z=Math.PI/2;wheels.push(wheel);
+    const rim=cylinder(g,x+Math.sign(x)*.62,1.45,z,.78,.78,.16,palette.steel,28);rim.rotation.z=Math.PI/2;
+    const hub=cylinder(g,x+Math.sign(x)*.72,1.45,z,.31,.31,.18,palette.dark,20);hub.rotation.z=Math.PI/2;
+  }
   g.userData={turret,arm,mg,wheels};return g;
 }
 function aircraft(kind,hostile){
