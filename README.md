@@ -66,3 +66,8 @@ H5 ZIP在TapTap后台选择 **H5小游戏** 上传，版本填写 **0.9.0**（�
 - 沙砾城墟为 2 × 2 km 城市地图，包含高楼、街道、湖与树木，复用物理碰撞和侦察遮挡。
 - 长鼻熊履带改为独立刚性履带板循环，负重轮继续随行驶转动；悍驴导弹架固定。
 - 本次只更新项目，不构建 APK。已通过引擎、载具存档、火炮/教程、城市情报与 GLB 完整性检查。当前环境缺少 Chromium，尚未做浏览器画面验收。
+
+
+## v0.9 Android build
+
+Automated Android debug APK build for the updated 飞棍来咯 project.
