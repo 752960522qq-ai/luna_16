@@ -14,10 +14,10 @@ const names={uav:'无人机',missile:'巡航导弹',artillery:'火炮',sam:'防�
 const {VEHICLES,WEAPONS,DEFAULT_VEHICLE,vehicleSpec}=window.Blindfire;
 let profileStorage=null;try{profileStorage=localStorage;}catch(_){}
 const profile=new window.BlindfireProgress.Progress(profileStorage);
-let roundKey=null,roundReward=null,mapAim=false,tutorial=null,tutorialRendered=-1;
+let roundKey=null,roundReward=null,mapAim=false,battleMap='hills',tutorial=null,tutorialRendered=-1;
 function beginRewardRound(){roundKey=globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;roundReward=null;}
 function walletUI(){$('coinBalance').textContent=profile.coins.toLocaleString('zh-CN');}
-function shop(){walletUI();const v=VEHICLES.longnose_artillery,owned=profile.owned.includes(v.id);showModal('shop',`<span class="eyebrow">SHOP</span><h3>商城</h3><div class="balance-line">战币余额 <b>${profile.coins}</b></div><h4>${v.name}</h4><p>152mm火炮 · 无人机 · 高射机枪<br>速度27m/s · 侦察250m · 血量100</p><button id="buyLongnose" class="btn" ${owned||profile.coins<v.price?'disabled':''}>${owned?'已拥有':'购买 · 500战币'}</button><button id="shopClose" class="btn secondary">返回主菜单</button>`,{buyLongnose:()=>{if(profile.purchase(v.id)){toast('长鼻熊已加入仓库');shop();}},shopClose:closeModal});}
+function shop(){walletUI();const v=VEHICLES.longnose_artillery,owned=profile.owned.includes(v.id);showModal('shop',`<span class="eyebrow">SHOP</span><h3>商城</h3><div class="balance-line">战币余额 <b>${profile.coins}</b></div><h4>${v.name}</h4><canvas id="vehiclePreview" class="vehicle-preview" aria-label="车辆3D展示，拖动旋转"></canvas><p>152mm火炮 · 无人机 · 高射机枪<br>速度27m/s · 侦察250m · 血量100</p><button id="buyLongnose" class="btn" ${owned||profile.coins<v.price?'disabled':''}>${owned?'已拥有':'购买 · 500战币'}</button><button id="shopClose" class="btn secondary">返回主菜单</button>`,{buyLongnose:()=>{if(profile.purchase(v.id)){toast('长鼻熊已加入仓库');shop();}},shopClose:closeModal});renderer.showPreview($('vehiclePreview'),v.id);}
 function warehouse(){showModal('warehouse',`<span class="eyebrow">GARAGE</span><h3>仓库</h3>${profile.owned.map(id=>`<button id="vehicle-${id}" class="vehicle-card"><svg><use href="#i-truck"/></svg><span><b>${escape(VEHICLES[id].name)}</b><small>${profile.selected===id?'当前出战':'已拥有'} · 查看车辆与武器数值</small></span><span>›</span></button>`).join('')}<button id="warehouseClose" class="btn secondary">返回主菜单</button>`,{warehouseClose:closeModal,...Object.fromEntries(profile.owned.map(id=>[`vehicle-${id}`,()=>vehicleDetails(id)]))});}
 function statRows(rows){return `<dl class="spec-list">${rows.map(([label,value])=>`<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join('')}</dl>`;}
 function weaponRows(id){const w=WEAPONS[id],rows=[['装填 / 冷却',w.cooldown?`${w.cooldown} 秒`:'无冷却'],['飞行速度',`${w.speed.toFixed(0)} m/s`]];
@@ -37,7 +37,7 @@ function weaponRows(id){const w=WEAPONS[id],rows=[['装填 / 冷却',w.cooldown?
  if(id==='sam')rows.push(['操控方式','发射后自动追踪']);
  if(id==='mg')rows.push(['操控方式','手动瞄准，按住开火']);return rows;}
 function vehicleDetails(id){const v=VEHICLES[id];if(!v||!profile.owned.includes(id))return;
- showModal('vehicle',`<span class="eyebrow">VEHICLE / OWNED</span><div class="vehicle-detail-header"><h3>${escape(v.name)}</h3><button id="vehicleBackTop" class="detail-back">返回仓库</button></div><p>${escape(v.description)}</p>${statRows([['血量',`${v.hp} HP`],['最高速度',`${v.speed} m/s · ${(v.speed*3.6).toFixed(1)} km/h`],['倒车速度',`${v.reverseSpeed} m/s`],['侦察距离',`${v.recon} m`],['携带武器',v.weapons.map(k=>WEAPONS[k].name).join('、')]])}<h4>武器数值</h4>${v.weapons.map(k=>`<section class="weapon-spec" data-spec="${k}"><h4>${escape(WEAPONS[k].name)}</h4>${statRows(weaponRows(k))}</section>`).join('')}<button id="equipVehicle" class="btn" ${profile.selected===id?'disabled':''}>${profile.selected===id?'已设为出战车辆':'设为出战车辆'}</button><button id="vehicleBack" class="btn secondary">返回仓库</button>`,{equipVehicle:()=>{profile.equip(id);vehicleDetails(id);},vehicleBack:warehouse,vehicleBackTop:warehouse});}
+ showModal('vehicle',`<span class="eyebrow">VEHICLE / OWNED</span><div class="vehicle-detail-header"><h3>${escape(v.name)}</h3><button id="vehicleBackTop" class="detail-back">返回仓库</button></div><canvas id="vehiclePreview" class="vehicle-preview" aria-label="车辆3D展示，拖动旋转"></canvas><p>${escape(v.description)}</p>${statRows([['尺寸',`${v.dimensions.length} × ${v.dimensions.width} × ${v.dimensions.height} m`],['情报留存',`${v.intelLife} 秒`],['血量',`${v.hp} HP`],['最高速度',`${v.speed} m/s · ${(v.speed*3.6).toFixed(1)} km/h`],['倒车速度',`${v.reverseSpeed} m/s`],['侦察距离',`${v.recon} m`],['携带武器',v.weapons.map(k=>WEAPONS[k].name).join('、')]])}<h4>武器数值</h4>${v.weapons.map(k=>`<section class="weapon-spec" data-spec="${k}"><h4>${escape(WEAPONS[k].name)}</h4>${statRows(weaponRows(k))}</section>`).join('')}<button id="equipVehicle" class="btn" ${profile.selected===id?'disabled':''}>${profile.selected===id?'已设为出战车辆':'设为出战车辆'}</button><button id="vehicleBack" class="btn secondary">返回仓库</button>`,{equipVehicle:()=>{profile.equip(id);vehicleDetails(id);},vehicleBack:warehouse,vehicleBackTop:warehouse});renderer.showPreview($('vehiclePreview'),id);}
 try{difficulty=localStorage.getItem('bf-difficulty')||'standard';if(!difficultyNames[difficulty])difficulty='standard';}catch(_){}
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const audio=new GameAudio();
@@ -45,8 +45,8 @@ try{audio.enabled=localStorage.getItem('bf-sound')!=='off';}catch(_){}
 function soundUI(){document.querySelectorAll('.sound-button').forEach(b=>{b.classList.toggle('muted',!audio.enabled);b.setAttribute('aria-label',audio.enabled?'关闭声音':'开启声音');});}
 function vibrate(ms){try{if(native&&native.vibrate)native.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(_){} }
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');toastUntil=performance.now()+2300;}
-function showModal(kind,html,handlers={}){modalKind=kind;$('modalCard').innerHTML=html;$('modal').classList.remove('hidden');for(const[id,fn]of Object.entries(handlers)){const el=$(id);if(el)el.addEventListener('click',fn);}}
-function closeModal(){$('modal').classList.add('hidden');$('modalCard').innerHTML='';modalKind=null;}
+function showModal(kind,html,handlers={}){renderer.hidePreview();modalKind=kind;$('modalCard').innerHTML=html;$('modal').classList.remove('hidden');for(const[id,fn]of Object.entries(handlers)){const el=$(id);if(el)el.addEventListener('click',fn);}}
+function closeModal(){renderer.hidePreview();$('modal').classList.add('hidden');$('modalCard').innerHTML='';modalKind=null;}
 function setScreen(next){screen=next;$('menu').classList.toggle('hidden',next!=='menu');$('battle').classList.toggle('hidden',next!=='battle');renderer.resize();}
 function sendNet(data){if(!connected)return;try{if(transport==='online'&&remote)remote.send(JSON.stringify(data));else if(native)native.send(JSON.stringify(data));}catch(_){}}
 function dispatch(action,silent=false){
@@ -59,9 +59,9 @@ function dispatch(action,silent=false){
  return r;
 }
 function select(k){if(!Object.prototype.hasOwnProperty.call(C,k)||!view?.own.weapons.includes(k))return;stopFire();aimTarget=null;dispatch({type:'vehicle'},true);const r=dispatch({type:'select',weapon:k},true);if(!r.ok)return;selected=k;document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
-function startAI(seed){document.querySelectorAll('.tutorial-highlight').forEach(el=>el.classList.remove('tutorial-highlight'));tutorial=null;$('tutorialPanel').classList.add('hidden');disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',difficulty,seed,vehicles:[profile.selected]});beginRewardRound();view=engine.snapshot(0);mapAim=false;paused=false;lastLog=0;oldHp=view.own.maxHp;selected=view.own.selected;resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficultyNames[difficulty]}`;setScreen('battle');select(selected);updateHUD();}
+function startAI(seed){document.querySelectorAll('.tutorial-highlight').forEach(el=>el.classList.remove('tutorial-highlight'));tutorial=null;$('tutorialPanel').classList.add('hidden');disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',mapId:battleMap,difficulty,seed,vehicles:[profile.selected]});renderer.setMap(engine.mapId);beginRewardRound();view=engine.snapshot(0);mapAim=false;paused=false;lastLog=0;oldHp=view.own.maxHp;selected=view.own.selected;resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficultyNames[difficulty]}`;setScreen('battle');select(selected);updateHUD();}
 function startTutorial(){
- disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'tutorial',seed:731,vehicles:[DEFAULT_VEHICLE,DEFAULT_VEHICLE],countdown:0});tutorial=new window.BlindfireTutorial.Tutorial(engine);tutorialRendered=-1;beginRewardRound();view=engine.snapshot(0);selected=view.own.selected;paused=false;mapAim=false;resetInput();renderer.cameraKey=null;setScreen('battle');$('modeLabel').textContent='新手实战引导';showTutorialStep();updateHUD();
+ disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'tutorial',seed:731,vehicles:[DEFAULT_VEHICLE,DEFAULT_VEHICLE],countdown:0});renderer.setMap('hills');tutorial=new window.BlindfireTutorial.Tutorial(engine);tutorialRendered=-1;beginRewardRound();view=engine.snapshot(0);selected=view.own.selected;paused=false;mapAim=false;resetInput();renderer.cameraKey=null;setScreen('battle');$('modeLabel').textContent='新手实战引导';showTutorialStep();updateHUD();
 }
 function showTutorialStep(){
  if(!tutorial||tutorialRendered===tutorial.step)return;tutorialRendered=tutorial.step;view=engine.snapshot(0);selected=view.own.selected;const [title,text,next]=tutorial.instruction;
@@ -93,7 +93,7 @@ function updateHUD(){
  $('artilleryMode').textContent=p.artilleryMode==='direct'?'改为曲射':'改为平射';$('artilleryMode').setAttribute('aria-label',p.artilleryMode==='direct'?'切换为曲射模式':'切换为平射模式');
  $('cameraBadge').querySelector('span').textContent=pilot?`${names[pilot.kind]} / 手动追尾`:'发射车 / 第三人称';$('stickLabel').textContent=pilot?'左右转向 / 上下俯仰':'驾驶 / 转向';
  $('flightMode').textContent=pilot?`${names[pilot.kind]} · ${pilot.remaining.toFixed(0)}s 续航`:selected==='artillery'?`火炮 / ${p.artilleryMode==='direct'?'平射':'曲射'}`:uav&&uav.orbit?`无人机盘旋 · ${uav.remaining.toFixed(0)}s 能量`:'地面机动 / LAUNCHER';$('altitude').textContent=pilot?`离地 ${Math.max(0,pilot.y-terrain(pilot.x,pilot.z)).toFixed(0)} m · ${pilot.speed} m/s`:`速度 ${Math.abs(p.speed).toFixed(0)} m/s`;
- $('mapAimToggle').classList.toggle('hidden',!!pilot||selected!=='artillery'||p.artilleryMode!=='curve');if(pilot||selected!=='artillery'||p.artilleryMode!=='curve')mapAim=false;renderer.mapAim=mapAim;$('mapAimToggle').textContent=mapAim?'返回车尾视角':'地图瞄准';
+ $('mapAimToggle').classList.toggle('hidden',!!pilot||selected!=='artillery'||p.artilleryMode!=='curve');if(pilot||selected!=='artillery'||p.artilleryMode!=='curve')mapAim=false;renderer.mapAim=mapAim;$('mapCameraControls').classList.toggle('hidden',!mapAim);$('mapAimToggle').textContent=mapAim?'返回车尾视角':'地图瞄准';
  const a=pilot||p.aim[selected];let aimText=`仰角 ${(a.pitch*180/Math.PI).toFixed(0)}°`;
  if(!pilot&&selected==='artillery'){const arc=ballistic(p);aimText+=arc.range===null?' · 落点在战区外':` · 距离 ${arc.range.toFixed(0)} m`;}else aimText+=` · 航向 ${((a.yaw*180/Math.PI+360)%360).toFixed(0)}°`;$('aimInfo').textContent=aimText;
  document.querySelector('.weapon-row').style.setProperty('--weapon-count',p.weapons.length);
@@ -199,6 +199,8 @@ document.querySelectorAll('[data-weapon]').forEach(b=>b.addEventListener('click'
 $('returnVehicle').addEventListener('click',()=>{stopFire();resetInput();dispatch({type:'vehicle'});updateHUD();});
 $('takeUAV').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();dispatch({type:'pilot',id:u.id});updateHUD();}});
 $('uavOrbit').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();control();dispatch({type:'uav-orbit',id:u.id,active:!u.orbit});updateHUD();}});
+$('battleMap').addEventListener('change',e=>{battleMap=e.target.value;});
+$('mapZoomIn').onclick=()=>renderer.zoomMap(.8);$('mapZoomOut').onclick=()=>renderer.zoomMap(1.25);
 $('mapAimToggle').addEventListener('click',()=>{mapAim=!mapAim;resetInput();renderer.cameraKey=null;updateHUD();});
 $('artilleryMode').addEventListener('click',()=>{stopFire();resetInput();control();dispatch({type:'artillery-mode',mode:view.own.artilleryMode==='direct'?'curve':'direct'});updateHUD();});
 $('fireButton').addEventListener('pointerdown',e=>{if(firePointer!==null||modalKind)return;e.preventDefault();firePointer=e.pointerId;try{$('fireButton').setPointerCapture(e.pointerId);}catch(_){}fire();});
@@ -208,9 +210,21 @@ $('joystick').addEventListener('pointerdown',e=>{if(modalKind||joystickPointer!=
 $('joystick').addEventListener('pointermove',e=>{if(joystickPointer===e.pointerId)moveStick(e);});
 function releaseStick(e){if(joystickPointer!==e.pointerId)return;joystickPointer=null;stick.x=stick.y=0;$('stickKnob').style.transform='';control();}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('joystick').addEventListener(name,releaseStick);
-$('world').addEventListener('pointerdown',e=>{if(mapAim&&screen==='battle'&&!modalKind){e.preventDefault();const q=renderer.mapTarget(e.clientX,e.clientY);if(q)dispatch({type:'map-aim',x:q.x,z:q.z});return;}if(screen!=='battle'||modalKind||!view||view.over||aimPointer!==null)return;e.preventDefault();aimPointer=e.pointerId;const a=currentPilot()||view.own.aim[selected];drag={x:e.clientX,y:e.clientY,yaw:a.yaw,pitch:a.pitch};$('world').setPointerCapture(e.pointerId);audio.init();});
-$('world').addEventListener('pointermove',e=>{if(aimPointer!==e.pointerId||!drag)return;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006,pitch:drag.pitch-(e.clientY-drag.y)*.0045};});
-function releaseAim(e){if(aimPointer!==e.pointerId)return;control();aimPointer=null;drag=null;}
+const mapPointers=new Map();let mapGesture=null;
+$('world').addEventListener('wheel',e=>{if(mapAim){e.preventDefault();renderer.zoomMap(Math.exp(e.deltaY*.001));}},{passive:false});
+$('world').addEventListener('pointerdown',e=>{
+ if(mapAim&&screen==='battle'&&!modalKind){e.preventDefault();$('world').setPointerCapture(e.pointerId);mapPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(mapPointers.size===1)mapGesture={x:e.clientX,y:e.clientY,moved:false};else mapGesture.moved=true;return;}
+ if(screen!=='battle'||modalKind||!view||view.over||aimPointer!==null)return;e.preventDefault();aimPointer=e.pointerId;const a=currentPilot()||view.own.aim[selected];drag={x:e.clientX,y:e.clientY,yaw:a.yaw,pitch:a.pitch};$('world').setPointerCapture(e.pointerId);audio.init();
+});
+$('world').addEventListener('pointermove',e=>{
+ if(mapPointers.has(e.pointerId)){const prev=mapPointers.get(e.pointerId),other=[...mapPointers.entries()].find(([id])=>id!==e.pointerId)?.[1];
+  if(other){const before=Math.hypot(prev.x-other.x,prev.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(after>10)renderer.zoomMap(before/after);}
+  else if(mapGesture.moved||Math.hypot(e.clientX-mapGesture.x,e.clientY-mapGesture.y)>8){mapGesture.moved=true;renderer.panMap(e.clientX-prev.x,e.clientY-prev.y);}
+  mapPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});return;
+ }
+ if(aimPointer!==e.pointerId||!drag)return;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006,pitch:drag.pitch-(e.clientY-drag.y)*.0045};
+});
+function releaseAim(e){if(mapPointers.has(e.pointerId)){if(e.type==='pointerup'&&mapPointers.size===1&&!mapGesture.moved){const q=renderer.mapTarget(e.clientX,e.clientY);if(q)dispatch({type:'map-aim',x:q.x,z:q.z});}mapPointers.delete(e.pointerId);return;}if(aimPointer!==e.pointerId)return;control();aimPointer=null;drag=null;}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('world').addEventListener(name,releaseAim);
 window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)return;const k=e.key.toLowerCase();if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();keys.add(k);}else if(k===' '&&!e.repeat){e.preventDefault();fire();}else if(/^[1-5]$/.test(k))select(view.own.weapons[Number(k)-1]);else if(k==='f'){$('returnVehicle').click();}else if(k==='escape')showPause();});
 window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());if(e.key===' ')stopFire();});

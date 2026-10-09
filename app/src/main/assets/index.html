@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><meta name="theme-color" content="#142720"><title>盲区交火 · 3D战术交火</title><meta name="description" content="3D战术对战：驾驶发射车、手操导弹和无人机，单人战术训练与安卓同网对战。"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23142720'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23c5edc5' stroke-width='2'/%3E%3Cpath d='M16 3v9m0 8v9M3 16h9m8 0h9' stroke='%23c5edc5' stroke-width='2'/%3E%3C/svg%3E"><link rel="stylesheet" href="style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><meta name="theme-color" content="#142720"><title>飞棍来咯 · 3D战术交火</title><meta name="description" content="3D战术对战：驾驶发射车、手操导弹和无人机，单人战术训练与安卓同网对战。"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23142720'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23c5edc5' stroke-width='2'/%3E%3Cpath d='M16 3v9m0 8v9M3 16h9m8 0h9' stroke='%23c5edc5' stroke-width='2'/%3E%3C/svg%3E"><link rel="stylesheet" href="style.css"></head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
 <symbol id="i-uav" viewBox="0 0 32 32"><path d="m16 3 2 11 11 5v3l-11-3-1 6 5 3H10l5-3-1-6-11 3v-3l11-5 2-11Z"/></symbol>
@@ -17,15 +17,16 @@
 <div id="worldStage"><canvas id="world" aria-label="3D战场，可拖动瞄准"></canvas></div>
 <main id="menu" class="screen menu">
  <div class="menu-top"><span class="eyebrow"><i></i> BLINDFIRE / 3D</span><div class="wallet" aria-label="战币余额"><span>战币</span><b id="coinBalance">0</b></div><button class="icon-button sound-button" aria-label="开关声音"><svg><use href="#i-sound"/></svg></button></div>
- <div class="brand"><div class="brand-index">未知敌情 / 手动交火</div><h1>盲区<br><span>交火</span><b>。</b></h1><p>每一次攻击，<br>也是一条情报。</p><div class="edition-tag"><span>3D</span> 第三人称战术对战</div></div>
+ <div class="brand"><div class="brand-index">未知敌情 / 手动交火</div><h1>飞棍<br><span>来咯</span><b>。</b></h1><p>每一次攻击，<br>也是一条情报。</p><div class="edition-tag"><span>3D</span> 第三人称战术对战</div></div>
  <div class="menu-bottom"><div class="difficulty"><span>训练难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button><button data-difficulty="hard">困难</button></div>
+ <label class="map-select">战场 <select id="battleMap"><option value="hills">丘陵交火 · 2×2km</option><option value="city">沙砾城墟 · 2×2km</option></select></label>
  <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span></button>
  <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同网对战</small></button>
  <div class="garage-actions"><button id="openShop">商城</button><button id="openWarehouse">仓库</button><button id="openTutorial">新手引导</button></div>
  <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.9</span></div></div>
 </main>
 <main id="battle" class="screen battle hidden">
- <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
+ <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>飞棍来咯<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
  <div class="health"><span id="vehicleName">悍驴导弹车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div>
  <div class="intel-panel"><span class="eyebrow">CONTACT / INTEL</span><div id="intelBadge" class="intel-badge">敌情未知</div><div id="threatAlert" class="hidden">空中威胁</div></div>
  <div class="mini-wrap"><canvas id="mini" aria-label="小型情报雷达"></canvas><span>2km × 2km · 北向上</span></div>
@@ -33,7 +34,7 @@
  <div id="ballisticPanel" class="ballistic-panel hidden"><div class="ballistic-heading"><span>曲射弹道</span><button id="artilleryMode" aria-label="切换为平射模式">改为平射</button></div><canvas id="ballisticScope" width="240" height="116" aria-label="火炮抛物线剖面"></canvas></div>
  <div id="reticle" class="reticle"><i></i><b></b><span></span></div>
  <div id="countdown" class="countdown hidden"></div><div id="toast" class="toast hidden"></div>
- <button id="mapAimToggle" class="map-aim-toggle hidden">地图瞄准</button><div id="enemyDots"></div><div id="tutorialPanel" class="tutorial-panel hidden"><b id="tutorialTitle"></b><p id="tutorialText"></p><button id="tutorialNext" class="btn">继续</button></div><div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
+ <button id="mapAimToggle" class="map-aim-toggle hidden">地图瞄准</button><div id="mapCameraControls" class="map-camera-controls hidden"><button id="mapZoomIn" aria-label="放大">＋</button><button id="mapZoomOut" aria-label="缩小">−</button><span>点击瞄准 · 拖动平移 · 双指缩放</span></div><div id="enemyDots"></div><div id="tutorialPanel" class="tutorial-panel hidden"><b id="tutorialTitle"></b><p id="tutorialText"></p><button id="tutorialNext" class="btn">继续</button></div><div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
  <div class="camera-actions"><button id="returnVehicle" class="hidden"><svg><use href="#i-truck"/></svg>返回车辆</button><button id="takeUAV" class="hidden"><svg><use href="#i-uav"/></svg>接管无人机</button><button id="uavOrbit" class="hidden"><svg><use href="#i-uav"/></svg><span id="uavOrbitLabel">50m盘旋</span></button></div>
  <div id="eventLine" class="event-line"><i></i><span>敌方位置未知 · 侦察或观察空中尾迹</span></div>
  <div id="joystick" class="joystick" role="slider" tabindex="0" aria-label="驾驶和飞行摇杆"><div class="stick-arrows"><span>↑</span><span>← · →</span><span>↓</span></div><div id="stickKnob" class="stick-knob"></div><span id="stickLabel" class="stick-label">驾驶 / 转向</span></div>

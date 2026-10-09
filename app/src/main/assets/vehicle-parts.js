@@ -29,23 +29,22 @@ export function articulateBear(scene,scale){
   }
   mesh.geometry=geometry(geo,body);geo.dispose();
  }
- const track=scene.getObjectByName('Object_12'),pos=track.geometry.attributes.position,base=pos.array.slice();
- return {turret,barrel:pitch,wheels,tracks:{mesh:track,base,normals:track.geometry.attributes.normal.array.slice(),scale}};
+ const original=scene.getObjectByName('Object_12'),track=new THREE.InstancedMesh(new THREE.BoxGeometry(.43,.15,.09),original.material,192);track.name='bearAnimatedTreadLinks';original.parent.add(track);original.visible=false;track.frustumCulled=false;
+ const tracks={mesh:track,scale,count:96};rollTracks(tracks,0);
+ return {turret,barrel:pitch,wheels,tracks};
 }
 export function rollTracks(track,travel){
- // Move the real track belt continuously around its closed stadium-shaped path.
- const p=track.mesh.geometry.attributes.position,L=5.29,R=.635,cy=-.53,cz=-.165,per=2*L+2*Math.PI*R,shift=-travel/track.scale;
- for(let i=0;i<p.count;i++){
-  const x=track.base[i*3],y=track.base[i*3+1]-cy,z=track.base[i*3+2]-cz;let s,r,oldAngle=0;
-  if(y>L/2){const a=Math.atan2(y-L/2,z);s=L+a*R;oldAngle=-a;r=Math.hypot(y-L/2,z);}
-  else if(y<-L/2){let a=Math.atan2(-(y+L/2),-z);if(a<0)a+=Math.PI*2;s=2*L+Math.PI*R+a*R;oldAngle=-Math.PI-a;r=Math.hypot(y+L/2,z);}
-  else if(z>=0){s=y+L/2;r=z;}else{s=L+Math.PI*R+L/2-y;oldAngle=-Math.PI;r=-z;}
-  s=((s+shift)%per+per)%per;let yy,zz,angle=0;
-  if(s<L){yy=s-L/2;zz=r;}else if(s<L+Math.PI*R){const a=(s-L)/R;angle=-a;yy=L/2+r*Math.sin(a);zz=r*Math.cos(a);}
-  else if(s<2*L+Math.PI*R){angle=-Math.PI;yy=L/2-(s-L-Math.PI*R);zz=-r;}else{const a=(s-2*L-Math.PI*R)/R;angle=-Math.PI-a;yy=-L/2-r*Math.sin(a);zz=-r*Math.cos(a);}
-  p.setXYZ(i,x,yy+cy,zz+cz);const d=angle-oldAngle,c=Math.cos(d),sn=Math.sin(d),nx=track.normals[i*3],ny=track.normals[i*3+1],nz=track.normals[i*3+2];track.mesh.geometry.attributes.normal.setXYZ(i,nx,ny*c-nz*sn,ny*sn+nz*c);
+ // Separate rigid tread pads circulate around both closed belts without stretching vertices.
+ const L=5.29,R=.59,cy=-.53,cz=-.165,per=2*L+2*Math.PI*R,dummy=new THREE.Object3D();
+ for(let side=0;side<2;side++)for(let i=0;i<track.count;i++){
+  const s=((i/track.count*per-travel/track.scale)%per+per)%per;let y,z,a;
+  if(s<L){y=s-L/2;z=R;a=0;}
+  else if(s<L+Math.PI*R){a=-(s-L)/R;y=L/2-R*Math.sin(a);z=R*Math.cos(a);}
+  else if(s<2*L+Math.PI*R){a=-Math.PI;y=L/2-(s-L-Math.PI*R);z=-R;}
+  else{const q=(s-2*L-Math.PI*R)/R;a=-Math.PI-q;y=-L/2-R*Math.sin(q);z=-R*Math.cos(q);}
+  dummy.position.set(side?1.53:-1.50,y+cy,z+cz);dummy.rotation.set(a,0,0);dummy.updateMatrix();track.mesh.setMatrixAt(side*track.count+i,dummy.matrix);
  }
- p.needsUpdate=true;track.mesh.geometry.attributes.normal.needsUpdate=true;
+ track.mesh.instanceMatrix.needsUpdate=true;
 }
 export function articulateAvenger(model){
  const source=model.getObjectByName('mesh_331_mat_70_0'),geo=source.geometry,parts=components(source),upper=parts.filter(c=>c.box.min.z>390&&c.box.max.x<120),ids=new Set(upper),body=parts.filter(c=>!ids.has(c)).flatMap(c=>c.indices);

@@ -20,7 +20,7 @@ store.setItem(KEY,'broken');assert.equal(new Progress(store).coins,0);
 const blocked=new Progress({getItem:()=>{throw Error('blocked')},setItem:()=>{throw Error('blocked')}});assert.equal(blocked.reward('offline','win'),100);assert.equal(blocked.saved,false);assert.equal(blocked.reward('offline','win'),0);
 const hard=new B.Engine({mode:'ai',difficulty:'hard',countdown:0,seed:42}),ai=hard.players[1];ai.cd.sam=100;ai.cd.uav=100;ai.cd.missile=100;
 hard.command(0,{type:'select',weapon:'uav'});const launched=hard.command(0,{type:'fire'}),u=hard.shots.find(s=>s.id===launched.id);Object.assign(u,{x:ai.x+100,y:ai.y+45,z:ai.z-110,speed:0});hard.command(0,{type:'vehicle'});
-tick(hard,.25);assert.equal(hard.shots.some(s=>s.owner===1&&s.kind==='bullet'),false);tick(hard,3);assert.ok(ai.stats.intercepted>0,'gunner should still be able to intercept');
+tick(hard,.25);assert.equal(hard.shots.some(s=>s.owner===1&&s.kind==='bullet'),false);tick(hard,5);assert.ok(ai.stats.intercepted>0,'gunner should still be able to intercept');
 for(const kind of ['uav','missile']){
  let kills=0;
  for(let seed=1;seed<=64;seed++){

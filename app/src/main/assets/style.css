@@ -44,3 +44,5 @@
 .tutorial-panel button{pointer-events:auto}
 .map-aim-toggle{left:20px;right:auto;top:242px}
 @media(max-height:650px){.tutorial-panel{top:202px;padding:9px;font-size:12px}.tutorial-panel p{margin:5px 0}.map-aim-toggle{top:190px}}
+
+.vehicle-preview{display:block;width:100%;height:220px;touch-action:none;border-radius:12px;margin:12px 0;background:#263b33}.map-select{display:flex;align-items:center;gap:12px;margin:8px 0;color:#d6dfc8}.map-select select{background:#243a30;color:#e8efdd;border:1px solid #617462;padding:8px;border-radius:8px;flex:1}.map-camera-controls{position:absolute;top:150px;left:18px;pointer-events:auto;display:flex;gap:8px;align-items:center}.map-camera-controls button{width:40px;height:40px;background:#243a30;color:white;border:1px solid #829879;border-radius:8px;font-size:24px}.map-camera-controls span{font-size:11px;color:white;background:#243a30aa;padding:6px;pointer-events:none}
