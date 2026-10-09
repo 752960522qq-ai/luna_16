@@ -13,7 +13,7 @@ const stick={x:0,y:0},keys=new Set();
 const names={uav:'无人机',missile:'巡航导弹',artillery:'火炮',sam:'防空导弹',mg:'高射机枪'};
 const {VEHICLES,WEAPONS,DEFAULT_VEHICLE,vehicleSpec}=window.Blindfire;
 let profileStorage=null;try{profileStorage=localStorage;}catch(_){}
-const profile=new window.BlindfireProgress.Progress(profileStorage);
+const profile=new window.BlindfireProgress.Progress(profileStorage,{infiniteCoins:new URLSearchParams(location.search).get('infiniteCoins')==='1'});
 let roundKey=null,roundReward=null,mapAim=false,battleMap='hills',tutorial=null,tutorialRendered=-1;
 function beginRewardRound(){roundKey=globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;roundReward=null;}
 function walletUI(){$('coinBalance').textContent=profile.coins.toLocaleString('zh-CN');}

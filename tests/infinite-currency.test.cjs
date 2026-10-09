@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const B=require('../app/src/main/assets/engine.js');
+const {Progress,KEY}=require('../app/src/main/assets/progress.js');
+const values=new Map();
+const storage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)};
+const p=new Progress(storage,{infiniteCoins:true});
+assert.equal(p.coins,Number.MAX_SAFE_INTEGER);
+assert.equal(p.purchase('longnose_artillery'),true);
+assert.ok(p.owned.includes('longnose_artillery'));
+assert.equal(p.coins,Number.MAX_SAFE_INTEGER);
+assert.equal(p.purchase('longnose_artillery'),false);
+assert.equal(p.reward('round-win','win'),100);
+assert.equal(p.coins,Number.MAX_SAFE_INTEGER);
+const loaded=new Progress(storage,{infiniteCoins:true});
+assert.equal(loaded.coins,Number.MAX_SAFE_INTEGER);
+assert.equal(loaded.owned.includes('longnose_artillery'),true);
+assert.equal(loaded.selected,B.DEFAULT_VEHICLE);const standard=new Progress({getItem:()=>null,setItem:()=>{}});assert.equal(standard.coins,0);
+console.log('PASS max safe integer currency persists through restart, rewards and purchases');

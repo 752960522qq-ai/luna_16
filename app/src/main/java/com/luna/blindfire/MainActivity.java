@@ -57,10 +57,10 @@ public class MainActivity extends Activity {
                 }
                 return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
             }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return !url.equals(ORIGIN + "index.html"); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return !url.equals(ORIGIN + "index.html") && !url.startsWith(ORIGIN + "index.html?"); }
         });
         game.addJavascriptInterface(new Bridge(), "Native");
-        setContentView(game); game.loadUrl(ORIGIN + "index.html");
+        setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.INFINITE_COINS ? "?infiniteCoins=1" : ""));
     }
     private LanLink createLink(final int generation, final String code) {
         return new LanLink(new LanLink.Listener() {

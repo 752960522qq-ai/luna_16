@@ -2,6 +2,8 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.luna.blindfire'
     compileSdk 35
-    defaultConfig { applicationId 'com.luna.blindfire'; minSdk 23; targetSdk 35; versionCode 10; versionName '0.9' }
+    def infiniteCoins = project.findProperty('infiniteCoins')?.toString() == 'true'
+    defaultConfig { applicationId infiniteCoins ? 'com.luna.blindfire.infinite' : 'com.luna.blindfire'; minSdk 23; targetSdk 35; versionCode 10; versionName infiniteCoins ? '0.9-infinite' : '0.9'; buildConfigField 'boolean', 'INFINITE_COINS', infiniteCoins.toString() }
+    buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
 }
