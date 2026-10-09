@@ -9,7 +9,7 @@ try{
  assert.equal((await post('exchange',{code:host.code,token:'0'.repeat(48),commands:[]})).status,401);
  const state={type:'state',view:new engine.Engine({mode:'lan'}).snapshot(1)};const h=await post('exchange',{code:host.code,token:host.token,state,stateSeq:1,ack:0});assert.equal(h.joined,true);
  const commands=[{type:'command',seq:1,action:{type:'select',weapon:'artillery'}},{type:'command',seq:2,action:{type:'artillery-mode',mode:'direct'}},{type:'command',seq:3,action:{type:'fire'}}];
- const g=await post('exchange',{code:guest.code,token:guest.token,commands});assert.deepEqual(g.state,state);assert.equal('host_key' in g,false);assert.equal('token' in g,false);
+ const g=await post('exchange',{code:guest.code,token:guest.token,commands});assert.equal(g.joined,true);assert.deepEqual(g.state,state);assert.equal('host_key' in g,false);assert.equal('token' in g,false);
  await post('exchange',{code:guest.code,token:guest.token,commands});let received=await post('exchange',{code:host.code,token:host.token,state,stateSeq:1,ack:0});assert.deepEqual(received.commands,commands);
  received=await post('exchange',{code:host.code,token:host.token,state,stateSeq:1,ack:3});assert.deepEqual(received.commands,[]);await post('exchange',{code:guest.code,token:guest.token,commands});assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM commands').get().n,0);
  assert.equal((await post('exchange',{code:guest.code,token:guest.token,commands:[{type:'command',seq:4,action:{type:'decoy'}}]})).status,400);
