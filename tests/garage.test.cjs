@@ -6,26 +6,26 @@ const e=new B.Engine({mode:'lan',countdown:0,seed:42}),p=e.players[0];
 assert.equal(B.vehicleSpec(p.vehicleId).name,'悍驴导弹车');assert.deepEqual(p.weapons,['uav','missile','sam','mg']);
 assert.equal(e.command(0,{type:'select',weapon:'artillery'}).ok,false);assert.equal(p.selected,'missile');
 p.selected='artillery';assert.equal(e.command(0,{type:'fire'}).ok,false);assert.equal(p.cd.artillery,0);assert.equal(e.shots.length,0);
-assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,false);assert.equal(B.WEAPONS.artillery.cooldown,5);assert.equal(B.ARTILLERY_RANGE,1000);
+assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,false);assert.equal(B.WEAPONS.artillery.cooldown,5);assert.equal(B.ARTILLERY_RANGE,1200);
 p.weapons.push('artillery');assert.equal(e.command(0,{type:'select',weapon:'artillery'}).ok,true);assert.equal(e.command(0,{type:'fire'}).ok,true);
 const drive=new B.Engine({mode:'lan',countdown:0,seed:42}),truck=drive.players[0];Object.assign(truck,{x:1000,z:1000,y:B.terrain(1000,1000),yaw:0});
 drive.command(0,{type:'control',throttle:1,steer:0});tick(drive,.5);assert.ok(truck.speed>25&&truck.speed<=B.vehicleSpec(truck.vehicleId).speed);assert.ok(truck.wheelTravel>0);
 drive.command(0,{type:'control',throttle:0,steer:0});tick(drive,3);const stopped=truck.wheelTravel;tick(drive,.5);assert.ok(Math.abs(truck.wheelTravel-stopped)<.00001);
 drive.command(0,{type:'control',throttle:-1,steer:0});tick(drive,.5);assert.ok(truck.speed<0&&truck.wheelTravel<stopped);assert.equal(drive.snapshot(0).own.wheelTravel,truck.wheelTravel);
-for(const difficulty of['easy','standard','hard']){const a=new B.Engine({mode:'ai',countdown:0,seed:18,difficulty});tick(a,90);assert.ok(a.shots.every(s=>s.kind!=='artillery'));assert.ok(a.trails.every(s=>s.kind!=='artillery'));assert.ok(a.players.every(p=>p.weapons.length===4));}
+for(const difficulty of['easy','standard','hard']){const a=new B.Engine({mode:'ai',countdown:0,seed:18,difficulty,vehicles:['handlv_missile','handlv_missile']});tick(a,90);assert.ok(a.shots.every(s=>s.kind!=='artillery'));assert.ok(a.trails.every(s=>s.kind!=='artillery'));assert.ok(a.players.every(p=>p.weapons.length===4));}
 const store=storage(),profile=new Progress(store);assert.equal(profile.coins,0);assert.deepEqual(profile.owned,[B.DEFAULT_VEHICLE]);assert.equal(profile.equip('not-owned'),false);
 assert.equal(profile.reward('round-1','win'),100);assert.equal(profile.reward('round-1','win'),0);assert.equal(profile.reward('round-2','draw'),50);assert.equal(profile.reward('round-3','loss'),25);assert.equal(profile.reward('round-4','abort'),0);assert.equal(new Progress(store).coins,175);
 store.setItem(KEY,JSON.stringify({version:1,coins:-10,selected:'bad',owned:['bad'],claimed:[12]}));const invalid=new Progress(store);assert.equal(invalid.coins,0);assert.deepEqual(invalid.owned,[B.DEFAULT_VEHICLE]);assert.equal(invalid.selected,B.DEFAULT_VEHICLE);
 store.setItem(KEY,'broken');assert.equal(new Progress(store).coins,0);
 const blocked=new Progress({getItem:()=>{throw Error('blocked')},setItem:()=>{throw Error('blocked')}});assert.equal(blocked.reward('offline','win'),100);assert.equal(blocked.saved,false);assert.equal(blocked.reward('offline','win'),0);
 const infinite=new Progress(store,{infiniteCoins:true});assert.equal(infinite.coins,Number.MAX_SAFE_INTEGER);assert.equal(infinite.purchase('longnose_artillery'),true);assert.equal(infinite.coins,Number.MAX_SAFE_INTEGER);assert.equal(new Progress(store,{infiniteCoins:true}).coins,Number.MAX_SAFE_INTEGER);
-const hard=new B.Engine({mode:'ai',difficulty:'hard',countdown:0,seed:42}),ai=hard.players[1];ai.cd.sam=100;ai.cd.uav=100;ai.cd.missile=100;
+const hard=new B.Engine({mode:'ai',difficulty:'hard',countdown:0,seed:42,vehicles:['handlv_missile','handlv_missile']}),ai=hard.players[1];ai.cd.sam=100;ai.cd.uav=100;ai.cd.missile=100;
 hard.command(0,{type:'select',weapon:'uav'});const launched=hard.command(0,{type:'fire'}),u=hard.shots.find(s=>s.id===launched.id);Object.assign(u,{x:ai.x+100,y:ai.y+45,z:ai.z-110,speed:0});hard.command(0,{type:'vehicle'});
 tick(hard,.25);assert.equal(hard.shots.some(s=>s.owner===1&&s.kind==='bullet'),false);tick(hard,5);assert.ok(ai.stats.intercepted>0,'gunner should still be able to intercept');
 for(const kind of ['uav','missile']){
  let kills=0;
  for(let seed=1;seed<=64;seed++){
-  const t=new B.Engine({seed,mode:'ai',difficulty:'hard',countdown:0}),gunner=t.players[1],owner=t.players[0];
+  const t=new B.Engine({seed,mode:'ai',difficulty:'hard',countdown:0,vehicles:['handlv_missile','handlv_missile']}),gunner=t.players[1],owner=t.players[0];
   Object.assign(gunner,{x:1000,z:1000,y:B.terrain(1000,1000)});Object.assign(owner,{x:1000,z:1700,y:B.terrain(1000,1700)});
   gunner.cd.sam=gunner.cd.uav=gunner.cd.missile=100;for(const a of Object.values(gunner.aim))a.yaw=0;
   t.command(0,{type:'select',weapon:kind});const r=t.command(0,{type:'fire'}),q=t.shots.find(s=>s.id===r.id);

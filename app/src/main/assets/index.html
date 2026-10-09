@@ -35,7 +35,7 @@
  <div id="reticle" class="reticle"><i></i><b></b><span></span></div>
  <div id="countdown" class="countdown hidden"></div><div id="toast" class="toast hidden"></div>
  <button id="mapAimToggle" class="map-aim-toggle hidden">地图瞄准</button><div id="mapCameraControls" class="map-camera-controls hidden"><button id="mapZoomIn" aria-label="放大">＋</button><button id="mapZoomOut" aria-label="缩小">−</button><span>点击瞄准 · 拖动平移 · 双指缩放</span></div><div id="enemyDots"></div><div id="tutorialPanel" class="tutorial-panel hidden"><b id="tutorialTitle"></b><p id="tutorialText"></p><button id="tutorialNext" class="btn">继续</button></div><div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
- <div class="camera-actions"><button id="returnVehicle" class="hidden"><svg><use href="#i-truck"/></svg>返回车辆</button><button id="takeUAV" class="hidden"><svg><use href="#i-uav"/></svg>接管无人机</button><button id="uavOrbit" class="hidden"><svg><use href="#i-uav"/></svg><span id="uavOrbitLabel">50m盘旋</span></button></div>
+ <div class="camera-actions"><button id="takeBomber" class="hidden">接管轰炸机</button><button id="returnVehicle" class="hidden"><svg><use href="#i-truck"/></svg>返回车辆</button><button id="takeUAV" class="hidden"><svg><use href="#i-uav"/></svg>接管无人机</button><button id="uavOrbit" class="hidden"><svg><use href="#i-uav"/></svg><span id="uavOrbitLabel">50m盘旋</span></button></div>
  <div id="eventLine" class="event-line"><i></i><span>敌方位置未知 · 侦察或观察空中尾迹</span></div>
  <div id="joystick" class="joystick" role="slider" tabindex="0" aria-label="驾驶和飞行摇杆"><div class="stick-arrows"><span>↑</span><span>← · →</span><span>↓</span></div><div id="stickKnob" class="stick-knob"></div><span id="stickLabel" class="stick-label">驾驶 / 转向</span></div>
  <div class="fire-area"><span id="dragHint">右侧拖动瞄准</span><button id="fireButton" class="fire-button" aria-label="开火"><span class="fire-mark">⊕</span><b id="fireLabel">发射</b><small id="fireSub">手动控制</small></button></div>
@@ -45,7 +45,7 @@
  <button class="weapon" data-weapon="artillery"><svg><use href="#i-artillery"/></svg><b>火炮</b><small>就绪</small><i class="cooldown"></i></button>
  <button class="weapon" data-weapon="sam"><svg><use href="#i-sam"/></svg><b>防空弹</b><small>就绪</small><i class="cooldown"></i></button>
  <button class="weapon" data-weapon="mg"><svg><use href="#i-mg"/></svg><b>机枪</b><small>按住开火</small><i class="cooldown"></i></button>
- </div></footer>
+ <button class="weapon" data-weapon="reconPlane"><svg><use href="#i-uav"/></svg><b>空中侦查</b><small>就绪</small><i class="cooldown"></i></button><button class="weapon" data-weapon="bomber"><svg><use href="#i-uav"/></svg><b>空中支援</b><small>就绪</small><i class="cooldown"></i></button></div></footer>
 </main>
 <div id="damageFlash" class="damage-flash"></div>
 <div id="graphicsError" class="graphics-error hidden"><span class="eyebrow">3D DISPLAY</span><h3>无法启动 3D 画面</h3><p>请更新手机的 Android System WebView / Chrome 后重新打开游戏。此版本需要 WebGL 2。</p><button onclick="location.reload()">重试</button></div>

@@ -1,6 +1,7 @@
 import * as THREE from './three.module.js';
 import { mergeGeometries } from './BufferGeometryUtils.js';
 import { GLTFLoader } from './GLTFLoader.js';
+import { MeshoptDecoder } from './meshopt_decoder.module.js';
 import { articulateBear,articulateAvenger,rollTracks } from './vehicle-parts.js';
 import { splitAvengerWheels } from './vehicle-wheels.js';
 const B = window.Blindfire, FORWARD = new THREE.Vector3(0, 0, -1);
@@ -53,6 +54,7 @@ function truck(hostile=false){
   }
   g.userData={turret,arm,mg,wheels};return g;
 }
+function bombModel(){const g=new THREE.Group(),m=new THREE.MeshLambertMaterial({color:'#49533a'});const body=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1.15,12),m);body.rotation.x=Math.PI/2;g.add(body);const nose=new THREE.Mesh(new THREE.SphereGeometry(.18,12,8),m);nose.position.z=-.57;g.add(nose);for(const angle of [0,Math.PI/2]){const fin=new THREE.Mesh(new THREE.BoxGeometry(.65,.035,.35),m);fin.position.z=.5;fin.rotation.z=angle;g.add(fin);}return g;}
 function aircraft(kind,hostile){
   const g=new THREE.Group(),body=hostile?palette.hostileAir:palette.white;
   if(kind==='uav'){
@@ -86,7 +88,7 @@ export class Renderer{
     window.addEventListener('resize',()=>this.resize());
   }
   async loadVehicles(){
-    const loader=new GLTFLoader();this.vehicleModels=[{},{}];
+    const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);this.vehicleModels=[{},{}];
     for(let i=0;i<2;i++){
       const av=(await loader.loadAsync(`models/m1097_${i?'enemy':'friendly'}.glb`)).scene,bounds=new THREE.Box3().setFromObject(av),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
       av.position.add(new THREE.Vector3(-center.x,-bounds.min.y,-center.z));const model=new THREE.Group();model.rotation.y=Math.PI/2;model.scale.setScalar(4.84/size.x);model.add(av);
@@ -98,7 +100,11 @@ export class Renderer{
       box(bm,-1.82,1.7,.5,.05,.3,.65,i?palette.hostileAir:new THREE.MeshLambertMaterial({color:'#1679ed'}));
       box(bm,1.82,1.7,.5,.05,.3,.65,i?palette.hostileAir:new THREE.MeshLambertMaterial({color:'#1679ed'}));
       this.vehicleModels[i].longnose_artillery={node:bm,model:true,source:'2S19 MSTA-S',...parts};
+      const grille=(await loader.loadAsync('models/kfz_grille.glb')).scene,gun=[];grille.updateMatrixWorld(true);grille.traverse(o=>{if(o.isMesh&&/polySurface387(05|23|06)_Gun/.test(o.name))gun.push(o);});
+      if(gun.length!==3)throw Error('KFZ barrel parts missing');const gb=new THREE.Box3();for(const o of gun)gb.union(new THREE.Box3().setFromObject(o));const pivot=new THREE.Group();pivot.position.set(gb.getCenter(new THREE.Vector3()).x,gb.getCenter(new THREE.Vector3()).y,gb.max.z-.3);grille.add(pivot);grille.updateMatrixWorld(true);for(const o of gun)pivot.attach(o);
+      this.vehicleModels[i].kfz_artillery={node:grille,model:true,wheels:[],barrel:pivot};
     }
+    this.airModels={};for(const [kind,file] of [['reconPlane','fi156.glb'],['bomber','ju87_redtail.glb']])this.airModels[kind]=(await loader.loadAsync('models/'+file)).scene;
     this.switchVehicle(this.ownTruck,0,B.DEFAULT_VEHICLE);this.switchVehicle(this.enemyTruck,1,B.DEFAULT_VEHICLE);this.modelsReady=true;const preview=document.getElementById("vehiclePreview");if(preview?.dataset.vehicle)this.showPreview(preview,preview.dataset.vehicle);
   }
   switchVehicle(g,role,id){
@@ -130,20 +136,20 @@ export class Renderer{
   }
   resize(){if(!this.ready)return;this.gl.setSize(innerWidth,innerHeight,false);this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
   orient(g,s){g.position.set(s.x,s.y,s.z);g.rotation.set(s.pitch,-s.yaw,0,'YXZ');}
-  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels)w.pivot.rotation[w.axis||'y']=-(p.wheelTravel||0)/w.radius*w.axisSign;
+  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels||[])w.pivot.rotation[w.axis||'y']=-(p.wheelTravel||0)/w.radius*w.axisSign;
       const a=p.aim?.[selected]||{yaw:p.yaw,pitch:0};
 
       if(g.userData.launcher)g.userData.launcher.rotation.z=-(a.yaw-p.yaw);
       if(g.userData.turret)g.userData.turret.rotation.z=-(a.yaw-p.yaw);
       if(g.userData.barrel)g.userData.barrel.rotation.x=selected==='artillery'?a.pitch:0;
       if(g.userData.tracks&&g.userData.lastTravel!==p.wheelTravel){rollTracks(g.userData.tracks,p.wheelTravel||0);g.userData.lastTravel=p.wheelTravel;}
-      return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=-(p.wheelTravel||0)/1.65;}
+      return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels||[])w.rotation.x=-(p.wheelTravel||0)/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&view.field.mapId!==this.landscapeMap)this.setMap(view.field.mapId);const demo=!view;
     const p=view?view.own:{x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};
     this.switchVehicle(this.ownTruck,0,p.vehicleId||B.DEFAULT_VEHICLE);this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;const footprint=B.vehicleSpec(p.vehicleId).dimensions;this.shadows[0].scale.set(footprint.width/2,footprint.length/2,1);
     const enemy=view&&view.enemy;this.enemyTruck.visible=!!enemy&&enemy.precise;this.enemyMarker.visible=!!enemy;
     if(enemy){this.enemyMarker.position.set(enemy.x,enemy.y+.8,enemy.z);this.enemyMarker.rotation.y=t*.8;this.enemyMarker.children[1].material.color.set(enemy.retained?'#b49c70':'#ffad7f');if(enemy.precise){this.switchVehicle(this.enemyTruck,1,enemy.vehicleId);this.updateTruck(this.enemyTruck,{...enemy,speed:0,aim:enemy.aim||p.aim},enemy.selected||'missile',t);this.shadows[1].position.set(enemy.x,enemy.y+.15,enemy.z);}}this.shadows[1].visible=!!enemy&&enemy.precise;
-    const active=new Set();for(const s of view?view.shots:[]){active.add(s.id);let g=this.meshes.get(s.id);if(!g){g=aircraft(s.kind,!s.mine);this.meshes.set(s.id,g);this.scene.add(g);}this.orient(g,s);if(g.userData.prop)g.userData.prop.rotation.z=t*50;if(g.userData.flame)g.userData.flame.scale.y=.75+.25*Math.sin(t*70);}
+    const active=new Set();for(const s of view?view.shots:[]){active.add(s.id);let g=this.meshes.get(s.id);if(!g){g=this.airModels?.[s.kind]?.clone(true)|| (s.kind==='bomb'?bombModel():aircraft(s.kind,!s.mine));if(s.kind==='bomber'){const bomb=bombModel();bomb.position.y=-1.4;g.add(bomb);g.userData.bomb=bomb;}this.meshes.set(s.id,g);this.scene.add(g);}this.orient(g,s);if(g.userData.bomb)g.userData.bomb.visible=s.bombs!==0;if(g.userData.prop)g.userData.prop.rotation.z=t*50;if(g.userData.flame)g.userData.flame.scale.y=.75+.25*Math.sin(t*70);}
     for(const[id,g]of this.meshes)if(!active.has(id)){this.scene.remove(g);this.disposeGroup(g);this.meshes.delete(id);}
     const trailIds=new Set();for(const tr of view?view.trails:[]){trailIds.add(tr.id);let line=this.trailMeshes.get(tr.id);if(!line){line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:'#ffffff',transparent:true,opacity:.72}));line.frustumCulled=false;this.scene.add(line);this.trailMeshes.set(tr.id,line);}line.geometry.dispose();line.geometry=new THREE.BufferGeometry().setFromPoints(tr.points.map(q=>new THREE.Vector3(q.x,q.y,q.z)));line.material.opacity=.66*Math.max(.12,1-tr.points[tr.points.length-1].age/8);}
     for(const[id,line]of this.trailMeshes)if(!trailIds.has(id)){this.scene.remove(line);line.geometry.dispose();line.material.dispose();this.trailMeshes.delete(id);}
@@ -154,14 +160,14 @@ export class Renderer{
     if(this.arc.visible){const arc=this.lastArc;this.arc.geometry.dispose();this.arc.geometry=new THREE.BufferGeometry().setFromPoints(arc.points.map(q=>new THREE.Vector3(q.x,q.y,q.z)));this.arc.computeLineDistances();this.hitRing.visible=!!arc.hit;if(arc.hit)this.hitRing.position.set(arc.hit.x,arc.hit.y+.35,arc.hit.z);}
     const desired=new THREE.Vector3(),target=new THREE.Vector3();let key;
     if(demo){desired.set(145+Math.sin(t*.07)*25,60,998);target.set(242,15,846);key='demo';this.camera.fov=55;}
-    else if(this.mapAim&&!pilot&&p.selected==='artillery'&&p.artilleryMode==='curve'){this.mapCenter||= {x:p.x,z:p.z};this.mapHeight||=800;desired.set(this.mapCenter.x,this.mapHeight,this.mapCenter.z+.01);target.set(this.mapCenter.x,0,this.mapCenter.z);key='mapAim';this.camera.fov=58;}
+    else if(this.mapAim&&!pilot&&p.selected==='artillery'&&p.artilleryMode==='curve'){this.mapCenter||= {x:p.x,z:p.z};this.mapHeight||=800;desired.set(this.mapCenter.x,this.mapHeight,this.mapCenter.z);target.set(this.mapCenter.x,0,this.mapCenter.z);key='mapAim';this.camera.fov=58;}
     else if(pilot){const d=B.direction(pilot.yaw,pilot.pitch),back=pilot.kind==='uav'?28:20;desired.set(pilot.x-d.x*back,pilot.y-d.y*back+10,pilot.z-d.z*back);desired.y=Math.max(desired.y,B.terrain(desired.x,desired.z)+4);target.set(pilot.x+d.x*45,pilot.y+d.y*45-3,pilot.z+d.z*45);key='flight'+pilot.id;this.camera.fov=68;}
     else{
       const a=p.selected==='sam'?{yaw:p.yaw,pitch:B.DEFAULT_PITCH.sam}:p.aim[p.selected],d=B.direction(a.yaw,0);
       this.ownTruck.updateMatrixWorld(true);
       const bounds=new THREE.Box3().setFromObject(this.ownTruck),size=bounds.getSize(new THREE.Vector3());
-      // Fit the full original silhouette to 18% of viewport height, including aerials.
-      const height=Math.max(size.y,2.5);let distance=Math.max(12,height/(.18*2*Math.tan(THREE.MathUtils.degToRad(62/2))));
+      // Fit the full original silhouette to 35% of viewport height, including aerials.
+      const height=Math.max(size.y,2.5);let distance=Math.max(12,height/(.35*2*Math.tan(THREE.MathUtils.degToRad(62/2))));
       target.set(p.x,p.y+height*.55,p.z);
       const fit=this.framingCamera||=new THREE.PerspectiveCamera(62,1,.35,8000);
       for(let pass=0;pass<4;pass++){
@@ -171,12 +177,12 @@ export class Renderer{
         for(const x of[bounds.min.x,bounds.max.x])for(const y of[bounds.min.y,bounds.max.y])for(const z of[bounds.min.z,bounds.max.z]){
           const q=new THREE.Vector3(x,y,z).project(fit);low=Math.min(low,q.y);high=Math.max(high,q.y);
         }
-        const fraction=(high-low)/2;if(Math.abs(fraction-.18)<.002)break;distance*=fraction/.18;
+        const fraction=(high-low)/2;if(Math.abs(fraction-.35)<.002)break;distance*=fraction/.35;
       }
       desired.set(p.x-d.x*distance,p.y+height*.65+distance*.18,p.z-d.z*distance);
       key='truck'+p.vehicleId;this.camera.fov=62;
     }
-    if(key!==this.cameraKey){this.camera.position.copy(desired);this.look=target.clone();this.cameraKey=key;}else{this.camera.position.lerp(desired,1-Math.exp(-dt*11));this.look.lerp(target,1-Math.exp(-dt*13));}this.camera.lookAt(this.look);this.camera.updateProjectionMatrix();
+    this.camera.up.set(0,key==='mapAim'?0:1,key==='mapAim'?-1:0);if(key==='mapAim'||key!==this.cameraKey){this.camera.position.copy(desired);this.look=target.clone();this.cameraKey=key;}else{this.camera.position.lerp(desired,1-Math.exp(-dt*11));this.look.lerp(target,1-Math.exp(-dt*13));}this.camera.lookAt(this.look);this.camera.updateProjectionMatrix();
     const landing=this.lastArc&&this.lastArc.hit;this.landingArrow.visible=!!landing;
     if(landing){const distance=this.camera.position.distanceTo(new THREE.Vector3(landing.x,landing.y,landing.z)),scale=B.clamp(distance*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/innerHeight*(28/24),.6,9);this.landingArrow.scale.setScalar(scale);this.landingArrow.position.set(landing.x,landing.y+scale*(15+Math.sin(t*3)*1.5),landing.z);this.landingArrow.quaternion.copy(this.camera.quaternion);}
     this.scene.fog=this.mapAim?null:(this.normalFog||=(new THREE.Fog('#b8c5ba',230,2400)));
@@ -210,7 +216,7 @@ export class Renderer{
   drawScope(p,arc){const panel=document.getElementById('ballisticPanel');panel.classList.toggle('hidden',!arc);if(!arc)return;panel.querySelector('span').textContent=p.artilleryMode==='direct'?'平射弹道':'曲射弹道';const canvas=document.getElementById('ballisticScope'),c=canvas.getContext('2d'),start=arc.points[0],range=B.dist(start,arc.points[arc.points.length-1])||1,maxY=Math.max(...arc.points.map(q=>q.y))-start.y+20;c.clearRect(0,0,240,116);c.strokeStyle='#739783';c.lineWidth=1;c.beginPath();c.moveTo(12,94);c.lineTo(228,94);c.stroke();c.strokeStyle='#c7ffd9';c.lineWidth=2;c.beginPath();arc.points.forEach((q,i)=>{const x=12+B.dist(start,q)/range*216,y=90-(q.y-start.y)/maxY*73;if(i)c.lineTo(x,y);else c.moveTo(x,y);});c.stroke();c.font='16px monospace';c.fillStyle='#bdd5b7';c.fillText(arc.range===null?'OUT':`${arc.range.toFixed(0)} m / ${arc.time.toFixed(1)} s`,12,112);}
   drawMini(v){const c=this.miniCtx,w=228,h=228,sc=200/B.W,own=v.own;c.clearRect(0,0,w,h);c.save();c.fillStyle='rgba(13,30,28,.9)';c.fillRect(0,0,w,h);c.beginPath();c.rect(14,14,200,200);c.clip();const map=q=>({x:14+q.x*sc,y:14+q.z*sc});this.mapPoint=map;c.strokeStyle='#436052';c.lineWidth=1;
     for(let x=0;x<=B.W;x+=250){const a=map({x,z:0}),b=map({x,z:B.H});c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}for(let z=0;z<=B.H;z+=250){const a=map({x:0,z}),b=map({x:B.W,z});c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
-    c.strokeStyle='#8fe9ad77';for(const s of[own,...v.shots.filter(s=>s.mine&&['uav','missile'].includes(s.kind))]){const q=map(s);c.beginPath();c.arc(q.x,q.y,(s===own?B.vehicleSpec(own.vehicleId).recon:B.reconRange(s.kind))*sc,0,Math.PI*2);c.stroke();}
+    c.strokeStyle='#8fe9ad77';for(const s of[own,...v.shots.filter(s=>s.mine&&['uav','missile','reconPlane','bomber'].includes(s.kind))]){const q=map(s);c.beginPath();c.arc(q.x,q.y,(s===own?B.vehicleSpec(own.vehicleId).recon:B.reconRange(s.kind))*sc,0,Math.PI*2);c.stroke();}
     for(const s of v.shots.filter(s=>s.mine&&s.kind==='uav'&&s.orbit)){const q=map(s.orbit);c.strokeStyle='#86d9ef';c.setLineDash([3,2]);c.beginPath();c.arc(q.x,q.y,s.orbit.radius*sc,0,Math.PI*2);c.stroke();c.setLineDash([]);}
     for(const b of B.BUILDINGS){const q=map(b);c.fillStyle='#8d927a';c.fillRect(q.x-b.w*sc/2,q.y-b.d*sc/2,b.w*sc,b.d*sc);}
     for(const clue of v.clues){const q=map(clue);c.strokeStyle='#ffe063';c.lineWidth=2;c.fillStyle='rgba(255,208,62,.24)';c.beginPath();if(clue.kind==='probe')c.arc(q.x,q.y,clue.radius*sc,0,Math.PI*2);else{c.moveTo(q.x,q.y);c.arc(q.x,q.y,clue.radius*sc,clue.yaw-Math.PI/2-clue.spread,clue.yaw-Math.PI/2+clue.spread);c.closePath();}c.fill();c.stroke();if(clue.tutorial){const center=map({x:clue.x+Math.sin(clue.yaw)*clue.radius*.5,z:clue.z-Math.cos(clue.yaw)*clue.radius*.5});c.beginPath();c.arc(center.x,center.y,clue.radius*.6*sc,0,Math.PI*2);c.stroke();}}

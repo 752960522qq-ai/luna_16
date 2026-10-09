@@ -7,7 +7,7 @@ function setup(opts={}){const e=new Engine({seed:42,mode:'lan',vehicles:['handlv
 function tick(e,time){for(let t=0;t<time-1e-8;t+=1/120)e.update(Math.min(1/120,time-t));}
 function weapon(e,id,k,yaw=0,pitch=.24){assert.equal(e.command(id,{type:'vehicle'}).ok,true);assert.equal(e.command(id,{type:'select',weapon:k}).ok,true);assert.equal(e.command(id,{type:'aim',yaw,pitch}).ok,true);}
 function target(e,position){weapon(e,1,'uav',0,.1);const r=e.command(1,{type:'fire'});const s=e.shots.find(s=>s.id===r.id);Object.assign(s,position,{speed:0});return s;}
-test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,8);}}assert.equal('decoy' in C,false);});
+test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,9);}}assert.equal('decoy' in C,false);});
 test('the physical field is exactly 2km by 2km and all spawns cover it',()=>{assert.equal(W,2000);assert.equal(H,2000);assert.equal(RECON_RANGE,300);assert.equal(INTEL_LIFE,5);const xs=[],zs=[];for(let seed=1;seed<=80;seed++){const e=new Engine({seed,mode:'lan'});for(const p of e.players){assert.ok(p.x>0&&p.x<W&&p.z>0&&p.z<H);xs.push(p.x);zs.push(p.z);}}assert.ok(Math.max(...xs)>1700&&Math.max(...zs)>1700);const e=setup(),p=e.players[0];Object.assign(p,{x:1990,z:1990,yaw:Math.PI/2,speed:33});e.command(0,{type:'control',throttle:1,steer:0});tick(e,.5);assert.ok(p.x<=1990);});
 test('vehicle 300m boundary reveals enemies and removes world/radar intel together after 5 seconds',()=>{const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(foe,{x:p.x,z:p.z-301,y:p.y});e.updateIntel();assert.equal(e.snapshot(0).enemy,null);foe.z=p.z-300;e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);const last=foe.z;foe.z=p.z-330;e.updateIntel();assert.equal(e.snapshot(0).enemy.z,last);tick(e,4.8);assert.ok(e.snapshot(0).enemy);tick(e,.25);assert.equal(e.snapshot(0).enemy,null);});
 test('UAV 400m and cruise missile 200m boundaries preserve five-second intel from either camera',()=>{
@@ -54,10 +54,10 @@ test('artillery mode changes aim limits and speed while preserving shared reload
  assert.equal(e.command(0,{type:'artillery-mode',mode:'invalid'}).ok,false);e.command(0,{type:'aim',yaw:0,pitch:0});assert.equal(p.aim.artillery.pitch,ARTILLERY.curve.minPitch);
  weapon(e,0,'missile');assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,false);
 });
-test('curve reaches about 1km and both modes land at their preview',()=>{
+test('curve reaches about 1.2km and both modes land at their preview',()=>{
  for(const[mode,pitch]of[['curve',Math.PI/4],['direct',.12]]){
   const e=setup(),p=e.players[0];Object.assign(p,{x:1000,z:1880,y:terrain(1000,1880)});weapon(e,0,'artillery');e.command(0,{type:'artillery-mode',mode});e.command(0,{type:'aim',yaw:0,pitch});
-  const arc=ballistic(p);assert.ok(arc.hit);if(mode==='curve'){assert.ok(arc.range>970&&arc.range<1040);assert.ok(Math.max(...arc.points.map(q=>q.y))>200);}
+  const arc=ballistic(p);assert.ok(arc.hit);if(mode==='curve'){assert.ok(arc.range>1170&&arc.range<1240);assert.ok(Math.max(...arc.points.map(q=>q.y))>200);}
   e.command(0,{type:'fire'});tick(e,arc.time+.05);const crater=e.effects.find(e=>e.kind==='crater');assert.ok(crater);assert.ok(dist(crater,arc.hit)<.05);
  }
 });
