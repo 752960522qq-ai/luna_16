@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),B=require('../app/src/main/assets/engine.js');
+B.configureMap('city');
+const p={vehicleId:B.DEFAULT_VEHICLE,x:400,y:2,z:400,yaw:0};
+assert.ok(B.vehicleHit({x:400,y:3,z:390},{x:400,y:3,z:410},p));
+assert.equal(B.vehicleHit({x:402,y:3,z:390},{x:402,y:3,z:410},p),false);
+assert.equal(B.vehicleHit({x:400,y:7,z:390},{x:400,y:7,z:410},p),false);
+p.yaw=Math.PI/2;
+assert.ok(B.vehicleHit({x:402,y:3,z:390},{x:402,y:3,z:410},p));
+const b=B.BUILDINGS[0];p.yaw=0;
+assert.equal(B.vehicleClear(b.x,b.z,p),false);
+assert.ok(B.vehicleClear(b.x+b.w/2+1.5,b.z,p));
+p.yaw=Math.PI/2;assert.equal(B.vehicleClear(b.x+b.w/2+1.5,b.z,p),false);
+console.log('PASS sized swept vehicle hits, vertical/side misses, rotated footprint and close wall clearance');

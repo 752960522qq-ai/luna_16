@@ -18,9 +18,9 @@
   }).map(([id,spec])=>[id,Object.freeze({...spec,...(spec.nearDamage?{nearDamage:Object.freeze(spec.nearDamage)}:{})})])));
   const DEFAULT_VEHICLE = 'handlv_missile';
   const VEHICLES = Object.freeze({
-    handlv_missile:Object.freeze({id:DEFAULT_VEHICLE,name:'悍驴导弹车',hp:100,speed:33,reverseSpeed:16,recon:300,intelLife:5,dimensions:Object.freeze({length:4.84,width:2.18,height:1.93}),muzzleHeight:1.65,muzzleLength:1.8,
+    handlv_missile:Object.freeze({id:DEFAULT_VEHICLE,name:'悍驴导弹车',hp:100,speed:33,reverseSpeed:16,recon:300,intelLife:5,dimensions:Object.freeze({length:4.84,width:2.557,height:2.48}),muzzleHeight:1.65,muzzleLength:1.8,
       weapons:Object.freeze(['uav','missile','sam','mg']),price:0,model:'m1097',description:'初始导弹车，兼顾空中侦察、精确打击与近程防空。'}),
-    longnose_artillery:Object.freeze({id:'longnose_artillery',name:'长鼻熊自行火炮',hp:100,speed:27,reverseSpeed:12,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.38,height:2.99}),muzzleHeight:2.7,muzzleLength:6.2,price:500,weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图曲射瞄准、无人机侦察与近程机枪防御。'})
+    longnose_artillery:Object.freeze({id:'longnose_artillery',name:'长鼻熊自行火炮',hp:100,speed:27,reverseSpeed:12,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.716,height:3.343}),muzzleHeight:2.7,muzzleLength:6.2,price:500,weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图曲射瞄准、无人机侦察与近程机枪防御。'})
   });
   const vehicleSpec = id => VEHICLES[id] || VEHICLES[DEFAULT_VEHICLE];
   const C = Object.freeze(Object.fromEntries(Object.entries(WEAPONS).map(([id,spec])=>[id,spec.cooldown])));
@@ -90,6 +90,36 @@
   }
   function clearGround(x, z, radius = 5) {
     return !inLake(x,z) && x >= 18 && x <= W - 18 && z >= 18 && z <= H - 18 && !BUILDINGS.some(b => Math.abs(x - b.x) < b.w / 2 + radius && Math.abs(z - b.z) < b.d / 2 + radius) && !TREES.some(t=>Math.hypot(t.x-x,t.z-z)<t.radius+radius);
+  }
+  function vehicleClear(x,z,p){
+    const d=vehicleSpec(p.vehicleId).dimensions,hw=d.width/2,hl=d.length/2,c=Math.cos(p.yaw),s=Math.sin(p.yaw);
+    const ex=Math.abs(c)*hw+Math.abs(s)*hl,ez=Math.abs(s)*hw+Math.abs(c)*hl;
+    if(x-ex<18||x+ex>W-18||z-ez<18||z+ez>H-18)return false;
+    for(const b of BUILDINGS){
+      const dx=b.x-x,dz=b.z-z;
+      if(Math.abs(dx)<ex+b.w/2&&Math.abs(dz)<ez+b.d/2&&
+        Math.abs(c*dx+s*dz)<hw+Math.abs(c)*b.w/2+Math.abs(s)*b.d/2&&
+        Math.abs(s*dx-c*dz)<hl+Math.abs(s)*b.w/2+Math.abs(c)*b.d/2)return false;
+    }
+    for(const t of TREES){const dx=t.x-x,dz=t.z-z,lx=c*dx+s*dz,lz=s*dx-c*dz;
+      if(Math.hypot(Math.max(0,Math.abs(lx)-hw),Math.max(0,Math.abs(lz)-hl))<t.radius)return false;
+    }
+    for(const sx of[-1,0,1])for(const sz of[-1,0,1])if(inLake(x+c*hw*sx+s*hl*sz,z+s*hw*sx-c*hl*sz))return false;
+    return true;
+  }
+
+  function vehicleHit(a,b,p){
+    const d=vehicleSpec(p.vehicleId).dimensions,c=Math.cos(p.yaw),s=Math.sin(p.yaw);
+    const local=q=>[c*(q.x-p.x)+s*(q.z-p.z),q.y-p.y,s*(q.x-p.x)-c*(q.z-p.z)];
+    const start=local(a),end=local(b),lo=[-d.width/2,0,-d.length/2],hi=[d.width/2,d.height,d.length/2];
+    let enter=0,exit=1;
+    for(let i=0;i<3;i++){
+      const delta=end[i]-start[i];
+      if(Math.abs(delta)<1e-9){if(start[i]<lo[i]||start[i]>hi[i])return false;continue;}
+      const t1=(lo[i]-start[i])/delta,t2=(hi[i]-start[i])/delta;
+      enter=Math.max(enter,Math.min(t1,t2));exit=Math.min(exit,Math.max(t1,t2));if(enter>exit)return false;
+    }
+    return true;
   }
   function lineOfSight(a, b) {
     if(treeHit(a,b))return false;
@@ -322,7 +352,7 @@
           const turn = p.drive.steer * dt * 1.2 * (Math.abs(p.speed) > .5 ? Math.sign(p.speed) : .5);
           p.yaw = wrap(p.yaw + turn); for (const a of Object.values(p.aim)) a.yaw = wrap(a.yaw + turn);
           const nx = p.x + Math.sin(p.yaw) * p.speed * dt, nz = p.z - Math.cos(p.yaw) * p.speed * dt;
-          if (clearGround(nx, nz)) { p.x = nx; p.z = nz; } else if (clearGround(nx, p.z)) p.x = nx; else if (clearGround(p.x, nz)) p.z = nz; else p.speed = 0;
+          if (vehicleClear(nx, nz,p)) { p.x = nx; p.z = nz; } else if (vehicleClear(nx, p.z,p)) p.x = nx; else if (vehicleClear(p.x, nz,p)) p.z = nz; else p.speed = 0;
           p.y = terrain(p.x, p.z);
         }
         p.wheelTravel+=(p.x-startX)*Math.sin(p.yaw)-(p.z-startZ)*Math.cos(p.yaw);
@@ -349,8 +379,8 @@
         }
         this.observeShot(s);
         const target = this.players[1 - s.owner], vehicle = { x: target.x, y: target.y + 3, z: target.z };
-        if (['missile','uav','artillery'].includes(s.kind) && segmentDistance(prev, s, vehicle) < 7) { this.explode(s, true); continue; }
-        if (s.kind === 'bullet' && segmentDistance(prev, s, vehicle) < 6) { this.damage(target, s.owner, WEAPONS.mg.groundDamage); s.hp = 0; continue; }
+        if (['missile','uav','artillery'].includes(s.kind) && vehicleHit(prev,s,target)) { this.explode(s, true); continue; }
+        if (s.kind === 'bullet' && vehicleHit(prev,s,target)) { this.damage(target, s.owner, WEAPONS.mg.groundDamage); s.hp = 0; continue; }
         if (s.y <= surface(s.x, s.z)) {
           // Find a swept terrain/building impact so fast rounds do not tunnel.
           let lo = 0, hi = 1; for (let j = 0; j < 8; j++) { const f = (lo + hi) / 2, x = prev.x + (s.x - prev.x) * f, y = prev.y + (s.y - prev.y) * f, z = prev.z + (s.z - prev.z) * f; if (y > surface(x, z)) lo = f; else hi = f; }
@@ -619,6 +649,6 @@
         threats:shots.filter(s=>!s.mine&&!s.retained&&['missile','uav','sam'].includes(s.kind)&&dist3(s,{...p,y:p.y+1.65})<=RECON_RANGE).length };
     }
   }
-  const api = { Engine,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,W,H,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,treeHit,clearGround,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
+  const api = { Engine,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,W,H,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,treeHit,clearGround,vehicleClear,vehicleHit,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; root.Blindfire = api;
 })(typeof window !== 'undefined' ? window : globalThis);

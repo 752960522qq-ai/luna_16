@@ -1,7 +1,7 @@
 import * as THREE from './three.module.js';
 import { mergeGeometries } from './BufferGeometryUtils.js';
 import { GLTFLoader } from './GLTFLoader.js';
-import { articulateBear,rollTracks } from './vehicle-parts.js';
+import { articulateBear,articulateAvenger,rollTracks } from './vehicle-parts.js';
 import { splitAvengerWheels } from './vehicle-wheels.js';
 const B = window.Blindfire, FORWARD = new THREE.Vector3(0, 0, -1);
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, ...opts });
@@ -89,11 +89,11 @@ export class Renderer{
     const loader=new GLTFLoader();this.vehicleModels=[{},{}];
     for(let i=0;i<2;i++){
       const av=(await loader.loadAsync(`models/m1097_${i?'enemy':'friendly'}.glb`)).scene,bounds=new THREE.Box3().setFromObject(av),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
-      av.position.add(new THREE.Vector3(-center.x,-bounds.min.y,-center.z));const model=new THREE.Group();model.rotation.y=Math.PI/2;model.scale.set(4.84/size.x,1.93/size.y,2.18/size.z);model.add(av);
-      const wheels=splitAvengerWheels(model),launcher=null;
+      av.position.add(new THREE.Vector3(-center.x,-bounds.min.y,-center.z));const model=new THREE.Group();model.rotation.y=Math.PI/2;model.scale.setScalar(4.84/size.x);model.add(av);
+      const wheels=splitAvengerWheels(model),launcher=articulateAvenger(model);
       this.vehicleModels[i].handlv_missile={node:model,model:true,source:'M1097 Avenger',patches:2,wheels,launcher};
       const bear=(await loader.loadAsync('models/2s19.glb')).scene,bb=new THREE.Box3().setFromObject(bear),bs=bb.getSize(new THREE.Vector3()),bc=bb.getCenter(new THREE.Vector3()),scale=11.91/bs.z;
-      const turretHeight=new THREE.Box3().setFromObject(bear.getObjectByName("Object_7")).max.y-bb.min.y,parts=articulateBear(bear,scale);bear.position.add(new THREE.Vector3(-bc.x,-bb.min.y,-bc.z));const bm=new THREE.Group();bm.scale.set(3.38/bs.x,2.99/turretHeight,scale);bm.add(bear);
+      const parts=articulateBear(bear,scale);bear.position.add(new THREE.Vector3(-bc.x,-bb.min.y,-bc.z));const bm=new THREE.Group();bm.scale.setScalar(scale);bm.add(bear);
       // Two small identification patches remain fixed on the chassis.
       box(bm,-1.82,1.7,.5,.05,.3,.65,i?palette.hostileAir:new THREE.MeshLambertMaterial({color:'#1679ed'}));
       box(bm,1.82,1.7,.5,.05,.3,.65,i?palette.hostileAir:new THREE.MeshLambertMaterial({color:'#1679ed'}));
@@ -115,14 +115,14 @@ export class Renderer{
     geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();this.landscape.add(new THREE.Mesh(geo,mat('#ffffff',{vertexColors:true})));
     if(this.landscapeMap==='city'){for(let n=0;n<=2000;n+=200){this.road([[n,0],[n,2000]],17);this.road([[0,n],[2000,n]],17);}const water=new THREE.Mesh(new THREE.CircleGeometry(1,64),mat('#538799',{transparent:true,opacity:.86}));water.rotation.x=-Math.PI/2;water.position.set(B.LAKE.x,.25,B.LAKE.z);water.scale.set(B.LAKE.rx,B.LAKE.rz,1);this.landscape.add(water);}
     else {this.road([[140,1850],[530,1360],[960,990],[620,510],[810,220],[1770,140]],9);this.road([[610,1910],[1440,1450],[1530,1070],[1390,690],[1840,370]],7);this.road([[620,510],[960,990],[1440,1450]],6);this.road([[530,1360],[960,990],[1390,690]],6);}
-    const buildingGroups=[];for(const b of B.BUILDINGS){const g=new THREE.Group();g.position.set(b.x,B.terrain(b.x,b.z),b.z);box(g,0,b.h/2,0,b.w,b.h,b.d,palette.sand);box(g,0,b.h+.4,0,b.w+1,.8,b.d+1,palette.roof);for(const x of[-b.w*.28,b.w*.28])for(let y=3.8;y<b.h-1;y+=5)if(y<b.h-1)box(g,x,y,-b.d/2-.03,2,1.7,.1,palette.glass);box(g,0,1.9,-b.d/2-.05,2.6,3.8,.12,palette.dark);buildingGroups.push(g);}
+    const buildingGroups=[];for(const b of B.BUILDINGS){const g=new THREE.Group();g.position.set(b.x,B.terrain(b.x,b.z),b.z);box(g,0,b.h/2,0,b.w,b.h,b.d,palette.sand);box(g,0,b.h+.4,0,b.w+1,.8,b.d+1,palette.roof);for(const x of[-b.w*.28,b.w*.28])for(let y=2.8;y<b.h-1;y+=3.2)if(y<b.h-1)box(g,x,y,-b.d/2-.03,1.4,1.5,.1,palette.glass);box(g,0,1.2,-b.d/2-.05,1.4,2.4,.12,palette.dark);buildingGroups.push(g);}
     const batches=new Map();for(const g of buildingGroups){g.updateMatrixWorld(true);g.traverse(o=>{if(!o.isMesh)return;if(!batches.has(o.material))batches.set(o.material,[]);batches.get(o.material).push(o.geometry.clone().applyMatrix4(o.matrixWorld));o.geometry.dispose();});}for(const [material,geometries]of batches){this.landscape.add(new THREE.Mesh(mergeGeometries(geometries),material));for(const g of geometries)g.dispose();}
     let seed=7919;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};const treeCount=B.TREES.length,trees=new THREE.InstancedMesh(new THREE.ConeGeometry(4.6,14,6),mat('#4e6553'),treeCount),trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.4,.65,5,5),mat('#6d6351'),treeCount),dummy=new THREE.Object3D();
     for(let i=0;i<treeCount;i++){const {x,z,y:h,scale,yaw}=B.TREES[i];dummy.position.set(x,h+9*scale,z);dummy.scale.set(scale,scale,scale);dummy.rotation.y=yaw;dummy.updateMatrix();trees.setMatrixAt(i,dummy.matrix);dummy.position.y=h+2.5*scale;dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix);}this.landscape.add(trees,trunks);
     const ridgeMat=mat('#899c93');for(let i=0;i<24;i++){const angle=i/24*Math.PI*2,r=2300+random()*200,g=new THREE.Mesh(new THREE.ConeGeometry(150+random()*140,110+random()*150,6),ridgeMat);g.position.set(B.W/2+Math.sin(angle)*r,40,B.H/2+Math.cos(angle)*r);g.rotation.y=random()*3;this.landscape.add(g);}
     const cloudMat=new THREE.MeshBasicMaterial({color:'#e5ece2',transparent:true,opacity:.32,depthWrite:false});for(let i=0;i<12;i++){const cloud=new THREE.Mesh(new THREE.SphereGeometry(1,12,6),cloudMat);cloud.position.set(-300+random()*(B.W+600),230+random()*100,-300+random()*(B.H+600));cloud.scale.set(110+random()*65,12+random()*8,40+random()*45);this.landscape.add(cloud);}
     const boundary=[];for(const[x,z]of[[0,0],[B.W,0],[B.W,B.H],[0,B.H],[0,0]])boundary.push(new THREE.Vector3(x,B.terrain(x,z)+.8,z));const border=new THREE.Line(new THREE.BufferGeometry().setFromPoints(boundary),new THREE.LineDashedMaterial({color:'#dec693',dashSize:15,gapSize:12,transparent:true,opacity:.55}));border.computeLineDistances();this.landscape.add(border);
-    for(const old of this.shadows||[])this.scene.remove(old);this.shadows=[];for(let i=0;i<2;i++){const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,24),new THREE.MeshBasicMaterial({color:'#263a2a',transparent:true,opacity:.28,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.scale.set(8,14,1);this.landscape.add(shadow);this.shadows.push(shadow);}
+    for(const old of this.shadows||[])this.scene.remove(old);this.shadows=[];for(let i=0;i<2;i++){const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,24),new THREE.MeshBasicMaterial({color:'#263a2a',transparent:true,opacity:.28,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.scale.set(1.3,2.5,1);this.landscape.add(shadow);this.shadows.push(shadow);}
   }
   road(points,width){const vertices=[],marks=[];
     for(let j=0;j<points.length-1;j++){const[a,b]=[points[j],points[j+1]],len=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])/len,nz=(b[0]-a[0])/len;for(let i=0;i<len;i+=12){const s=i/len,t=Math.min(1,(i+12)/len),q=(f,o)=>{const x=a[0]+(b[0]-a[0])*f+nx*o,z=a[1]+(b[1]-a[1])*f+nz*o;return[x,B.terrain(x,z)+.13,z];};vertices.push(...q(s,-width),...q(t,-width),...q(s,width),...q(t,-width),...q(t,width),...q(s,width));if(i%36<12)marks.push(...q(s,-.24),...q(t,-.24),...q(s,.24),...q(t,-.24),...q(t,.24),...q(s,.24));}}
@@ -133,13 +133,14 @@ export class Renderer{
   updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels)w.pivot.rotation[w.axis||'y']=-(p.wheelTravel||0)/w.radius*w.axisSign;
       const a=p.aim?.[selected]||{yaw:p.yaw,pitch:0};
 
+      if(g.userData.launcher)g.userData.launcher.rotation.z=-(a.yaw-p.yaw);
       if(g.userData.turret)g.userData.turret.rotation.z=-(a.yaw-p.yaw);
       if(g.userData.barrel)g.userData.barrel.rotation.x=selected==='artillery'?a.pitch:0;
       if(g.userData.tracks&&g.userData.lastTravel!==p.wheelTravel){rollTracks(g.userData.tracks,p.wheelTravel||0);g.userData.lastTravel=p.wheelTravel;}
       return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=-(p.wheelTravel||0)/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&view.field.mapId!==this.landscapeMap)this.setMap(view.field.mapId);const demo=!view;
     const p=view?view.own:{x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};
-    this.switchVehicle(this.ownTruck,0,p.vehicleId||B.DEFAULT_VEHICLE);this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;
+    this.switchVehicle(this.ownTruck,0,p.vehicleId||B.DEFAULT_VEHICLE);this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;const footprint=B.vehicleSpec(p.vehicleId).dimensions;this.shadows[0].scale.set(footprint.width/2,footprint.length/2,1);
     const enemy=view&&view.enemy;this.enemyTruck.visible=!!enemy&&enemy.precise;this.enemyMarker.visible=!!enemy;
     if(enemy){this.enemyMarker.position.set(enemy.x,enemy.y+.8,enemy.z);this.enemyMarker.rotation.y=t*.8;this.enemyMarker.children[1].material.color.set(enemy.retained?'#b49c70':'#ffad7f');if(enemy.precise){this.switchVehicle(this.enemyTruck,1,enemy.vehicleId);this.updateTruck(this.enemyTruck,{...enemy,speed:0,aim:enemy.aim||p.aim},enemy.selected||'missile',t);this.shadows[1].position.set(enemy.x,enemy.y+.15,enemy.z);}}this.shadows[1].visible=!!enemy&&enemy.precise;
     const active=new Set();for(const s of view?view.shots:[]){active.add(s.id);let g=this.meshes.get(s.id);if(!g){g=aircraft(s.kind,!s.mine);this.meshes.set(s.id,g);this.scene.add(g);}this.orient(g,s);if(g.userData.prop)g.userData.prop.rotation.z=t*50;if(g.userData.flame)g.userData.flame.scale.y=.75+.25*Math.sin(t*70);}
@@ -155,7 +156,26 @@ export class Renderer{
     if(demo){desired.set(145+Math.sin(t*.07)*25,60,998);target.set(242,15,846);key='demo';this.camera.fov=55;}
     else if(this.mapAim&&!pilot&&p.selected==='artillery'&&p.artilleryMode==='curve'){this.mapCenter||= {x:p.x,z:p.z};this.mapHeight||=800;desired.set(this.mapCenter.x,this.mapHeight,this.mapCenter.z+.01);target.set(this.mapCenter.x,0,this.mapCenter.z);key='mapAim';this.camera.fov=58;}
     else if(pilot){const d=B.direction(pilot.yaw,pilot.pitch),back=pilot.kind==='uav'?28:20;desired.set(pilot.x-d.x*back,pilot.y-d.y*back+10,pilot.z-d.z*back);desired.y=Math.max(desired.y,B.terrain(desired.x,desired.z)+4);target.set(pilot.x+d.x*45,pilot.y+d.y*45-3,pilot.z+d.z*45);key='flight'+pilot.id;this.camera.fov=68;}
-    else{const a=p.selected==='sam'?{yaw:p.yaw,pitch:B.DEFAULT_PITCH.sam}:p.aim[p.selected],d=B.direction(a.yaw,0),side=p.selected==='artillery'?10:0,basePitch=p.selected==='artillery'?B.artilleryParams(p).defaultPitch:B.DEFAULT_PITCH[p.selected];desired.set(p.x-d.x*14+Math.cos(a.yaw)*side,p.y+8,p.z-d.z*14+Math.sin(a.yaw)*side);target.set(p.x+d.x*48,p.y+7+Math.sin(a.pitch-basePitch)*110,p.z+d.z*48);key='truck';this.camera.fov=62;}
+    else{
+      const a=p.selected==='sam'?{yaw:p.yaw,pitch:B.DEFAULT_PITCH.sam}:p.aim[p.selected],d=B.direction(a.yaw,0);
+      this.ownTruck.updateMatrixWorld(true);
+      const bounds=new THREE.Box3().setFromObject(this.ownTruck),size=bounds.getSize(new THREE.Vector3());
+      // Fit the full original silhouette to 18% of viewport height, including aerials.
+      const height=Math.max(size.y,2.5);let distance=Math.max(12,height/(.18*2*Math.tan(THREE.MathUtils.degToRad(62/2))));
+      target.set(p.x,p.y+height*.55,p.z);
+      const fit=this.framingCamera||=new THREE.PerspectiveCamera(62,1,.35,8000);
+      for(let pass=0;pass<4;pass++){
+        desired.set(p.x-d.x*distance,p.y+height*.65+distance*.18,p.z-d.z*distance);
+        fit.position.copy(desired);fit.lookAt(target);fit.updateMatrixWorld(true);
+        let low=Infinity,high=-Infinity;
+        for(const x of[bounds.min.x,bounds.max.x])for(const y of[bounds.min.y,bounds.max.y])for(const z of[bounds.min.z,bounds.max.z]){
+          const q=new THREE.Vector3(x,y,z).project(fit);low=Math.min(low,q.y);high=Math.max(high,q.y);
+        }
+        const fraction=(high-low)/2;if(Math.abs(fraction-.18)<.002)break;distance*=fraction/.18;
+      }
+      desired.set(p.x-d.x*distance,p.y+height*.65+distance*.18,p.z-d.z*distance);
+      key='truck'+p.vehicleId;this.camera.fov=62;
+    }
     if(key!==this.cameraKey){this.camera.position.copy(desired);this.look=target.clone();this.cameraKey=key;}else{this.camera.position.lerp(desired,1-Math.exp(-dt*11));this.look.lerp(target,1-Math.exp(-dt*13));}this.camera.lookAt(this.look);this.camera.updateProjectionMatrix();
     const landing=this.lastArc&&this.lastArc.hit;this.landingArrow.visible=!!landing;
     if(landing){const distance=this.camera.position.distanceTo(new THREE.Vector3(landing.x,landing.y,landing.z)),scale=B.clamp(distance*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/innerHeight*(28/24),.6,9);this.landingArrow.scale.setScalar(scale);this.landingArrow.position.set(landing.x,landing.y+scale*(15+Math.sin(t*3)*1.5),landing.z);this.landingArrow.quaternion.copy(this.camera.quaternion);}
