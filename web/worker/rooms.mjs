@@ -1,5 +1,5 @@
 /* HTTPS relay. Each client owns a private token; only the guest's filtered view is relayed. */
-const VERSION=6,WAIT=600000,DEAD=25000,ACTIVE=120000,MAX=81920;
+const VERSION=7,WAIT=600000,DEAD=25000,ACTIVE=120000,MAX=81920;
 function token(bytes=24){return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),x=>x.toString(16).padStart(2,'0')).join('');}
 function code(){let n;do{n=crypto.getRandomValues(new Uint16Array(1))[0];}while(n>=60000);return String(n%10000).padStart(4,'0');}
 async function hash(value){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),x=>x.toString(16).padStart(2,'0')).join('');}

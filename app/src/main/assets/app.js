@@ -11,6 +11,32 @@ let lastFrame=performance.now(),lastSend=0,lastHud=0,lastInput=0,lastPeerAt=0,la
 let joystickPointer=null,aimPointer=null,firePointer=null,drag=null,aimTarget=null,damageUntil=0;
 const stick={x:0,y:0},keys=new Set();
 const names={uav:'无人机',missile:'巡航导弹',artillery:'火炮',sam:'防空导弹',mg:'高射机枪'};
+const {VEHICLES,WEAPONS,DEFAULT_VEHICLE,vehicleSpec}=window.Blindfire;
+let profileStorage=null;try{profileStorage=localStorage;}catch(_){}
+const profile=new window.BlindfireProgress.Progress(profileStorage);
+let roundKey=null,roundReward=null;
+function beginRewardRound(){roundKey=globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;roundReward=null;}
+function walletUI(){$('coinBalance').textContent=profile.coins.toLocaleString('zh-CN');}
+function shop(){walletUI();showModal('shop',`<span class="eyebrow">SHOP</span><h3>商城</h3><div class="balance-line">战币余额 <b>${profile.coins}</b></div><div class="shop-empty"><svg><use href="#i-truck"/></svg><p>暂无商品</p></div><button id="shopClose" class="btn secondary">返回主菜单</button>`,{shopClose:closeModal});}
+function warehouse(){showModal('warehouse',`<span class="eyebrow">GARAGE</span><h3>仓库</h3>${profile.owned.map(id=>`<button id="vehicle-${id}" class="vehicle-card"><svg><use href="#i-truck"/></svg><span><b>${escape(VEHICLES[id].name)}</b><small>${profile.selected===id?'当前出战':'已拥有'} · 查看车辆与武器数值</small></span><span>›</span></button>`).join('')}<button id="warehouseClose" class="btn secondary">返回主菜单</button>`,{warehouseClose:closeModal,...Object.fromEntries(profile.owned.map(id=>[`vehicle-${id}`,()=>vehicleDetails(id)]))});}
+function statRows(rows){return `<dl class="spec-list">${rows.map(([label,value])=>`<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join('')}</dl>`;}
+function weaponRows(id){const w=WEAPONS[id],rows=[['装填 / 冷却',w.cooldown?`${w.cooldown} 秒`:'无冷却'],['飞行速度',`${w.speed.toFixed(0)} m/s`]];
+ if(w.directDamage)rows.push(['直接命中伤害',`${w.directDamage} HP`]);
+ if(w.nearDamage)rows.push(['近炸伤害',`${w.nearDamage[0]}–${w.nearDamage[1]} HP`]);
+ if(w.blastRadius)rows.push(['爆炸范围',`${w.blastRadius} m`]);
+ if(w.hp)rows.push(['空中耐久',`${w.hp} HP`]);
+ if(w.recon)rows.push(['侦察距离',`${w.recon} m`]);
+ if(w.life!==null)rows.push([id==='uav'?'能量续航':'飞行时限',`${w.life} 秒`]);
+ if(w.lockRange)rows.push(['自动锁定范围',`${w.lockRange} m`]);
+ if(w.airDamage)rows.push(['空中目标伤害',`${w.airDamage} HP / 发`]);
+ if(w.groundDamage)rows.push(['车辆伤害',`${w.groundDamage} HP / 发`]);
+ if(w.fireInterval)rows.push(['射速',`${Math.round(60/w.fireInterval)} 发 / 分钟`],['理论弹道距离',`${Math.round(w.speed*w.life)} m`]);
+ if(id==='uav')rows.push(['盘旋半径','50 m'],['操控方式','手动飞行 / 自动盘旋']);
+ if(id==='missile')rows.push(['操控方式','手动飞行']);
+ if(id==='sam')rows.push(['操控方式','发射后自动追踪']);
+ if(id==='mg')rows.push(['操控方式','手动瞄准，按住开火']);return rows;}
+function vehicleDetails(id){const v=VEHICLES[id];if(!v||!profile.owned.includes(id))return;
+ showModal('vehicle',`<span class="eyebrow">VEHICLE / OWNED</span><div class="vehicle-detail-header"><h3>${escape(v.name)}</h3><button id="vehicleBackTop" class="detail-back">返回仓库</button></div><p>${escape(v.description)}</p>${statRows([['血量',`${v.hp} HP`],['最高速度',`${v.speed} m/s · ${(v.speed*3.6).toFixed(1)} km/h`],['倒车速度',`${v.reverseSpeed} m/s`],['侦察距离',`${v.recon} m`],['携带武器',v.weapons.map(k=>WEAPONS[k].name).join('、')]])}<h4>武器数值</h4>${v.weapons.map(k=>`<section class="weapon-spec" data-spec="${k}"><h4>${escape(WEAPONS[k].name)}</h4>${statRows(weaponRows(k))}</section>`).join('')}<button id="equipVehicle" class="btn" ${profile.selected===id?'disabled':''}>${profile.selected===id?'已设为出战车辆':'设为出战车辆'}</button><button id="vehicleBack" class="btn secondary">返回仓库</button>`,{equipVehicle:()=>{profile.equip(id);vehicleDetails(id);},vehicleBack:warehouse,vehicleBackTop:warehouse});}
 try{difficulty=localStorage.getItem('bf-difficulty')||'standard';if(!difficultyNames[difficulty])difficulty='standard';}catch(_){}
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const audio=new GameAudio();
@@ -30,20 +56,21 @@ function dispatch(action,silent=false){
  else if(r.ok&&!silent){audio.init();if(!['fire','detonate'].includes(action.type))audio.play('click');if(action.type==='fire'||action.type==='detonate')vibrate(15);}
  return r;
 }
-function select(k){if(!Object.prototype.hasOwnProperty.call(C,k))return;stopFire();aimTarget=null;selected=k;dispatch({type:'vehicle'},true);dispatch({type:'select',weapon:k},true);document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
-function startAI(seed){disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',difficulty,seed});view=engine.snapshot(0);paused=false;lastLog=0;oldHp=100;selected='missile';resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficultyNames[difficulty]}`;setScreen('battle');select('missile');updateHUD();}
-function returnMenu(){disconnect(false);engine=null;view=null;paused=false;resetInput();audio.reset();closeModal();setScreen('menu');}
+function select(k){if(!Object.prototype.hasOwnProperty.call(C,k)||!view?.own.weapons.includes(k))return;stopFire();aimTarget=null;selected=k;dispatch({type:'vehicle'},true);dispatch({type:'select',weapon:k},true);document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
+function startAI(seed){disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',difficulty,seed,vehicles:[profile.selected,DEFAULT_VEHICLE]});beginRewardRound();view=engine.snapshot(0);paused=false;lastLog=0;oldHp=view.own.maxHp;selected=view.own.selected;resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`单人训练 / ${difficultyNames[difficulty]}`;setScreen('battle');select(selected);updateHUD();}
+function returnMenu(){disconnect(false);engine=null;view=null;paused=false;resetInput();audio.reset();closeModal();setScreen('menu');walletUI();}
 function resetInput(){const captures=[['joystick',joystickPointer],['world',aimPointer],['fireButton',firePointer]];stick.x=stick.y=0;keys.clear();joystickPointer=aimPointer=firePointer=null;drag=aimTarget=null;$('stickKnob').style.transform='';for(const[id,pointer]of captures){if(pointer!==null)try{if($(id).hasPointerCapture(pointer))$(id).releasePointerCapture(pointer);}catch(_){}}}
 function currentPilot(){return view&&view.shots.find(s=>s.mine&&s.id===view.own.pilot);}
 function control(silent=true){if(!view||modalKind||paused&&!netRole||view.over)return;const throttle=clamp(-stick.y+(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),-1,1),steer=clamp(stick.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),-1,1);const a={type:'control',throttle,steer};if(aimTarget){a.yaw=aimTarget.yaw;a.pitch=aimTarget.pitch;aimTarget=null;}dispatch(a,silent);}
 function fire(){if(!view||modalKind||view.over)return;audio.init();control();const pilot=currentPilot();if(pilot){dispatch({type:'detonate'});}else if(selected==='mg'){dispatch({type:'mg',active:true},true);}else dispatch({type:'fire'});updateHUD();}
 function stopFire(e){if(e&&e.pointerId!==undefined&&e.pointerId!==firePointer)return;firePointer=null;if(view&&(view.own.mg||selected==='mg'))dispatch({type:'mg',active:false},true);$('fireButton').classList.remove('firing');}
 function result(){if(modalKind==='result'||!view)return;const outcome=view.outcome,title={win:'交火胜利',loss:'发射车损失',draw:'本局平局'}[outcome],s=view.own.stats,time=Math.round(Math.min(180,Math.max(0,view.t-3)));
- showModal('result',`<span class="eyebrow">AFTER ACTION / ${netRole?'DUEL':'SOLO'}</span><h3 class="result-heading ${outcome}">${title}</h3><p>${escape(view.reason)}</p><div class="result-grid"><div><small>造成伤害</small><b>${s.damage}<span>HP</span></b></div><div><small>剩余耐久</small><b>${view.own.hp}<span>HP</span></b></div><div><small>确认热源</small><b>${s.detections}<span>次</span></b></div><div><small>成功拦截</small><b>${s.intercepted}<span>次</span></b></div><div><small>装备发射</small><b>${s.launches}<span>次</span></b></div><div><small>交火时间</small><b>${time}<span>秒</span></b></div></div>${netRole?'':'<button id="again" class="btn">再次出战</button>'}<button id="backMenu" class="btn secondary">返回主菜单</button>`,{again:()=>startAI(),backMenu:returnMenu});audio.play(outcome==='win'?'lock':'warning');resetInput();
+ if(roundReward===null)roundReward=profile.reward(roundKey,outcome);walletUI();
+ showModal('result',`<span class="eyebrow">AFTER ACTION / ${netRole?'DUEL':'SOLO'}</span><h3 class="result-heading ${outcome}">${title}</h3><p>${escape(view.reason)}</p><div class="balance-line" id="roundCoins">战币 +${roundReward} <b>余额 ${profile.coins}</b></div>${profile.saved?'':'<p>本机存储不可用，战币暂存至关闭游戏。</p>'}<div class="result-grid"><div><small>造成伤害</small><b>${s.damage}<span>HP</span></b></div><div><small>剩余耐久</small><b>${view.own.hp}<span>HP</span></b></div><div><small>确认热源</small><b>${s.detections}<span>次</span></b></div><div><small>成功拦截</small><b>${s.intercepted}<span>次</span></b></div><div><small>装备发射</small><b>${s.launches}<span>次</span></b></div><div><small>交火时间</small><b>${time}<span>秒</span></b></div></div>${netRole?'':'<button id="again" class="btn">再次出战</button>'}<button id="backMenu" class="btn secondary">返回主菜单</button>`,{again:()=>startAI(),backMenu:returnMenu});audio.play(outcome==='win'?'lock':'warning');resetInput();
 }
 function updateHUD(){
  if(!view)return;const p=view.own,pilot=currentPilot(),m=Math.floor(view.remaining/60),s=Math.floor(view.remaining%60);$('timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
- $('hpBar').style.width=p.hp+'%';$('hpBar').style.background=p.hp<35?'#ffac89':'#c5edc5';$('hpNumber').textContent=p.hp;
+ $('hpBar').style.width=p.hp/p.maxHp*100+'%';$('hpBar').style.background=p.hp<p.maxHp*.35?'#ffac89':'#c5edc5';$('hpNumber').textContent=p.hp;$('vehicleName').textContent=vehicleSpec(p.vehicleId).name;
  const badge=$('intelBadge');badge.className='intel-badge';if(view.enemy&&view.enemy.precise){badge.textContent=view.enemy.retained?`情报保留 ${view.enemy.left.toFixed(1)}s`:'目标位置确认';badge.classList.add('lock');}else if(view.enemy){badge.textContent='旧位置 · 可能已移动';badge.classList.add('suspect');}else if(view.clues.length){badge.textContent='发现方向线索';badge.classList.add('suspect');}else badge.textContent='敌情未知';
  $('threatAlert').classList.toggle('hidden',!view.threats);$('threatAlert').textContent=`空中威胁 × ${view.threats}`;
  const uav=view.shots.find(s=>s.mine&&s.kind==='uav');$('takeUAV').classList.toggle('hidden',!uav||!!pilot||!!uav.orbit);$('returnVehicle').classList.toggle('hidden',!pilot);$('uavOrbit').classList.toggle('hidden',!uav||!!pilot&&pilot.kind!=='uav');$('uavOrbitLabel').textContent=uav&&uav.orbit?'手动飞行':'50m盘旋';$('uavOrbit').classList.toggle('active',!!uav&&!!uav.orbit);
@@ -52,7 +79,8 @@ function updateHUD(){
  $('flightMode').textContent=pilot?`${names[pilot.kind]} · ${pilot.remaining.toFixed(0)}s 续航`:selected==='artillery'?`火炮 / ${p.artilleryMode==='direct'?'平射':'曲射'}`:uav&&uav.orbit?`无人机盘旋 · ${uav.remaining.toFixed(0)}s 能量`:'地面机动 / LAUNCHER';$('altitude').textContent=pilot?`离地 ${Math.max(0,pilot.y-terrain(pilot.x,pilot.z)).toFixed(0)} m · ${pilot.speed} m/s`:`速度 ${Math.abs(p.speed).toFixed(0)} m/s`;
  const a=pilot||p.aim[selected];let aimText=`仰角 ${(a.pitch*180/Math.PI).toFixed(0)}°`;
  if(!pilot&&selected==='artillery'){const arc=ballistic(p);aimText+=arc.range===null?' · 落点在战区外':` · 距离 ${arc.range.toFixed(0)} m`;}else aimText+=` · 航向 ${((a.yaw*180/Math.PI+360)%360).toFixed(0)}°`;$('aimInfo').textContent=aimText;
- for(const b of document.querySelectorAll('.weapon')){const k=b.dataset.weapon,cd=p.cd[k];b.classList.toggle('selected',k===selected);b.classList.toggle('cooling',cd>0);b.querySelector('.cooldown').style.width=C[k]&&cd>0?cd/C[k]*100+'%':'0%';b.querySelector('small').textContent=cd>0?`${cd.toFixed(1)}s`:k==='mg'?'按住开火':k==='uav'&&uav?(uav.orbit?'盘旋中':'飞行中'):'就绪';}
+ document.querySelector('.weapon-row').style.setProperty('--weapon-count',p.weapons.length);
+ for(const b of document.querySelectorAll('.weapon')){const k=b.dataset.weapon,cd=p.cd[k],available=p.weapons.includes(k);b.classList.toggle('hidden',!available);b.disabled=!available;b.classList.toggle('selected',k===selected);b.classList.toggle('cooling',cd>0);b.querySelector('.cooldown').style.width=C[k]&&cd>0?cd/C[k]*100+'%':'0%';b.querySelector('small').textContent=cd>0?`${cd.toFixed(1)}s`:k==='mg'?'按住开火':k==='uav'&&uav?(uav.orbit?'盘旋中':'飞行中'):'就绪';}
  const cd=p.cd[selected],fb=$('fireButton');fb.classList.toggle('cooling',!pilot&&cd>0);fb.classList.toggle('firing',p.mg);fb.disabled=false;
  $('fireLabel').textContent=pilot?(pilot.kind==='sam'?'飞行中':'引爆'):selected==='mg'?'开火':cd>0?`${cd.toFixed(1)}s`:'发射';$('fireSub').textContent=pilot?(pilot.kind==='uav'?'贴近后自爆':'手动引爆'):selected==='sam'?'自动锁定':selected==='mg'?'按住持续射击':Math.abs(p.speed)>2?'停车后发射':'手动控制';
  $('dragHint').textContent=pilot?'拖动调整航向':selected==='sam'?'发射后自动追踪':'右侧拖动瞄准';
@@ -63,19 +91,19 @@ function updateHUD(){
  if(p.hp<oldHp){damageUntil=performance.now()+450;vibrate(65);}oldHp=p.hp;if(view.over)result();
 }
 function guide(backToPause=false){showModal('guide',`
- <span class="eyebrow">FIELD MANUAL / 2km × 2km</span><h3>双模式火炮，盘旋侦察。</h3>
+ <span class="eyebrow">FIELD MANUAL / 2km × 2km</span><h3>悍驴出战，盘旋侦察。</h3>
  <ol class="guide-list">
  <li><b>2km × 2km 的3D战场。</b>左摇杆驾驶，拖动画面瞄准。默认是车辆第三人称追尾视角。车体两侧小蓝块标记我方，小红块标记敌方。停车后才能发射。</li>
  <li><b>巡航导弹与无人机手动飞行。</b>发射后切换追尾视角，摇杆上下调整俯仰、左右转向，也可拖动调整航向。可随时返回车辆，再次接管无人机。</li>
- <li><b>火炮可切换曲射与平射。</b>点击弹道面板的切换按钮。曲射用于远距离和高弹道攻击，最大射程约1km；平射用于较低弹道的直接瞄准。两种模式都显示实际抛物线、落点上方的悬浮红色箭头和小地图落点标记。炮弹无定时引信，撞击地面或建筑才爆炸，装填同为5秒。</li>
+ <li><b>悍驴导弹车。</b>血量100，最高速度33m/s，车辆侦察300m。携带巡航导弹、无人机、防空导弹和高射机枪，不携带火炮。在仓库可查看车辆和武器的完整数值。</li>
  <li><b>无人机可以50米盘旋待机。</b>点击“50m盘旋”切回车辆，无人机自动绕半径50米的圆飞行并继续侦察。点击“手动飞行”即可重新接管。40秒总续航持续消耗，切换模式不会重置能量。</li>
  <li><b>侦察范围各不相同。</b>车辆300m、无人机400m、巡航导弹200m，按距离发现敌方，不需要朝向或手动锁定。目标脱离全部我方侦察范围后，3D画面和小地图保留最后位置5秒，然后同时消失。</li>
  <li><b>防空导弹自动锁定。</b>发射即自动追踪300米内的空中目标，优先巡航导弹，保持车辆视角。装填25秒，无目标时不消耗装填。炮弹不可拦截。</li>
  <li><b>机枪需要手动瞄准。</b>按住开火连续射击，无冷却。无人机耐久27、巡航导弹耐久18，每发机枪空中伤害9。白色尾迹每段保留8秒。</li>
  <li><b>训练新增困难 AI。</b>更快判断弹道线索、分区侦察、预测已发现目标的移动，开火后转移，并用自动防空导弹和手动机枪保护车辆。困难 AI 的血量、伤害、装填、各单位侦察范围与5秒情报规则与玩家相同。</li>
  <li><b>车辆和武器具有独立音效。</b>引擎随车速变化，发射、机枪开火、命中、爆炸和无人机旋翼各有声音。可在作战菜单开关声音。</li>
- <li><b>100 HP，限时3分钟。</b>导弹直击80、近炸45–60；火炮直击40、范围10–20；无人机贴近自爆30。没有诱饵。绿色圆圈是侦察范围，蓝色虚线小圆是无人机盘旋范围。</li>
- </ol><div class="hint-box">装填：无人机10秒 · 导弹22秒 · 火炮5秒 · 防空弹25秒<br>${EDITION==='h5'?'H5版本提供单人训练，支持新兵、标准、困难三种难度。':'远程联机暂时关闭。同网模式使用6位码，双方请使用v0.7。'}<br>键盘：WASD 驾驶 / 飞行 · 1–5 切换装备 · 空格开火 · F 返回车辆</div>
+ <li><b>100 HP，限时3分钟。</b>导弹直击80、近炸45–60；无人机贴近自爆30。没有诱饵。绿色圆圈是侦察范围，蓝色虚线小圆是无人机盘旋范围。</li>
+ </ol><div class="hint-box">装填：无人机10秒 · 导弹22秒 · 防空弹25秒<br>${EDITION==='h5'?'H5版本提供单人训练，支持新兵、标准、困难三种难度。':'远程联机暂时关闭。同网模式使用6位码，双方请使用v0.8。'}<br>键盘：WASD 驾驶 / 飞行 · 1–4 切换携带装备 · 空格开火 · F 返回车辆</div>
  <button id="guideClose" class="btn">准备行动</button>`,{guideClose:()=>{if(backToPause)showPause();else closeModal();}});}
 function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();dispatch({type:'control',throttle:0,steer:0},true);resetInput();if(!netRole)paused=true;
  showModal('pause',`<span class="eyebrow">TACTICAL PAUSE</span><h3>作战菜单</h3><p>${netRole?'双人对局仍在继续，尽快返回战场。':'训练已暂停。'}</p><button id="resume" class="btn">继续交火</button><button id="pauseGuide" class="btn secondary">作战指南</button><button id="toggleSound" class="btn secondary">声音：${audio.enabled?'开启':'关闭'}</button><button id="quitRound" class="btn danger">${netRole?'离开双人对局':'结束训练'}</button>`,{resume:()=>{paused=false;audio.init();closeModal();lastFrame=performance.now();},pauseGuide:()=>guide(true),toggleSound:()=>{audio.enabled=!audio.enabled;try{localStorage.setItem('bf-sound',audio.enabled?'on':'off');}catch(_){}soundUI();showPause();},quitRound:returnMenu});
@@ -126,16 +154,16 @@ function showPause(){if(screen!=='battle'||!view||view.over)return;stopFire();di
       }, joinBack:lanMenu
     });
   }
-function validView(v){return v&&v.version===6&&v.own&&Number.isFinite(v.own.x)&&Number.isFinite(v.own.y)&&Number.isFinite(v.own.z)&&Number.isFinite(v.t)&&v.own.cd&&v.own.aim&&v.own.stats&&['curve','direct'].includes(v.own.artilleryMode)&&['shots','clues','effects','trails','log','sounds'].every(k=>Array.isArray(v[k])&&v[k].length<160);}
+function validView(v){return v&&v.version===7&&v.own&&Array.isArray(v.own.weapons)&&v.own.weapons.length>0&&v.own.weapons.length<=5&&v.own.weapons.every(k=>Object.hasOwn(C,k))&&v.own.weapons.includes(v.own.selected)&&Number.isFinite(v.own.wheelTravel)&&Number.isFinite(v.own.maxHp)&&v.own.maxHp>0&&Number.isFinite(v.own.x)&&Number.isFinite(v.own.y)&&Number.isFinite(v.own.z)&&Number.isFinite(v.t)&&v.own.cd&&v.own.aim&&v.own.stats&&['curve','direct'].includes(v.own.artilleryMode)&&['shots','clues','effects','trails','log','sounds'].every(k=>Array.isArray(v[k])&&v[k].length<160);}
 window.onNativeNetwork=function(event){
  if(!event||!event.type)return;
  if(event.type==='listening'&&netRole==='host'&&event.remote&&transport==='online'){
-  showModal('waiting',`<span class="eyebrow">REMOTE ROOM / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">4位数字房间码</small><div class="room-code">${escape(event.code)}</div><p>把房间码发给对方，选择“加入远程房间”后即可出战。双方请安装 v0.7 或更高兼容版本。</p><button id="copyRemoteCode" class="btn">复制房间码</button><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{copyRemoteCode:async()=>{try{await navigator.clipboard.writeText(event.code);$('copyRemoteCode').textContent='已复制';}catch(_){$('copyRemoteCode').textContent='房间码：'+event.code;}},cancelWaiting:()=>{disconnect(false);lanMenu();}});
+  showModal('waiting',`<span class="eyebrow">REMOTE ROOM / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">4位数字房间码</small><div class="room-code">${escape(event.code)}</div><p>把房间码发给对方，选择“加入远程房间”后即可出战。双方请安装 v0.8 或更高兼容版本。</p><button id="copyRemoteCode" class="btn">复制房间码</button><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{copyRemoteCode:async()=>{try{await navigator.clipboard.writeText(event.code);$('copyRemoteCode').textContent='已复制';}catch(_){$('copyRemoteCode').textContent='房间码：'+event.code;}},cancelWaiting:()=>{disconnect(false);lanMenu();}});
  }else if(event.type==='listening'&&netRole==='host'){
   const ips=(event.ips||[]).filter(a=>/^\d{1,3}(\.\d{1,3}){3}$/.test(a));showModal('waiting',`<span class="eyebrow">ROOM OPEN / PLAYER A</span><h3>等待玩家 B</h3><small class="room-note">房间码</small><div class="room-code">${escape(event.code)}</div><small class="room-note">连接地址（任选可达地址）</small>${ips.map(a=>`<div class="room-address">${escape(a)}</div>`).join('')||'<p class="connection-error">未找到地址，请连接 Wi-Fi 或开启热点后重试。</p>'}<div class="room-status">● 房间已开放</div><p>玩家 B 输入地址和房间码，连接后自动开始。双方须使用同一版本。</p><button id="cancelWaiting" class="btn secondary">取消房间</button>`,{cancelWaiting:()=>{disconnect(false);lanMenu();}});
  }else if(event.type==='connected'&&netRole&&event.role===netRole&&modalKind==='waiting'&&!connected){
-  connected=true;lastPeerAt=performance.now();seq=remoteSeq=0;oldHp=100;lastLog=0;paused=false;audio.init();audio.reset();resetInput();renderer.cameraKey=null;selected='missile';
-  if(netRole==='host'){engine=new Engine({mode:'lan'});view=engine.snapshot(0);$('modeLabel').textContent=(transport==='online'?'远程交火':'双人交火')+' / 玩家 A';closeModal();setScreen('battle');select('missile');sendNet({type:'state',view:engine.snapshot(1)});}
+  beginRewardRound();connected=true;lastPeerAt=performance.now();seq=remoteSeq=0;oldHp=100;lastLog=0;paused=false;audio.init();audio.reset();resetInput();renderer.cameraKey=null;selected='missile';
+  if(netRole==='host'){engine=new Engine({mode:'lan',vehicles:[profile.selected,DEFAULT_VEHICLE]});view=engine.snapshot(0);$('modeLabel').textContent=(transport==='online'?'远程交火':'双人交火')+' / 玩家 A';closeModal();setScreen('battle');select('missile');sendNet({type:'state',view:engine.snapshot(1)});}
  }else if(event.type==='heartbeat'&&transport==='online'&&connected){lastPeerAt=performance.now();$('modeLabel').textContent=`远程交火 / 玩家 ${netRole==='host'?'A':'B'} · ${event.rtt}ms`;
  }else if(event.type==='data'&&connected){
   lastPeerAt=performance.now();let packet;try{if(typeof event.data!=='string'||event.data.length>65536)return;packet=JSON.parse(event.data);}catch(_){return;}
@@ -149,7 +177,7 @@ document.querySelectorAll('.sound-button').forEach(b=>b.addEventListener('click'
 document.querySelectorAll('[data-difficulty]').forEach(b=>b.addEventListener('click',()=>{difficulty=b.dataset.difficulty;try{localStorage.setItem('bf-difficulty',difficulty);}catch(_){}document.querySelectorAll('[data-difficulty]').forEach(c=>c.classList.toggle('chosen',c.dataset.difficulty===difficulty));audio.init();audio.play('click');}));
 document.querySelectorAll('[data-difficulty]').forEach(b=>b.classList.toggle('chosen',b.dataset.difficulty===difficulty));
 if(EDITION==='h5')$('openLAN').classList.add('hidden');
-$('startAI').addEventListener('click',()=>startAI());$('openLAN').addEventListener('click',lanMenu);$('openGuide').addEventListener('click',()=>guide());$('pauseButton').addEventListener('click',showPause);
+$('startAI').addEventListener('click',()=>startAI());$('openShop').addEventListener('click',shop);$('openWarehouse').addEventListener('click',warehouse);walletUI();$('openLAN').addEventListener('click',lanMenu);$('openGuide').addEventListener('click',()=>guide());$('pauseButton').addEventListener('click',showPause);
 document.querySelectorAll('[data-weapon]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.weapon)));
 $('returnVehicle').addEventListener('click',()=>{stopFire();resetInput();dispatch({type:'vehicle'});updateHUD();});
 $('takeUAV').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();dispatch({type:'pilot',id:u.id});updateHUD();}});
@@ -166,7 +194,7 @@ $('world').addEventListener('pointerdown',e=>{if(screen!=='battle'||modalKind||!
 $('world').addEventListener('pointermove',e=>{if(aimPointer!==e.pointerId||!drag)return;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006,pitch:drag.pitch-(e.clientY-drag.y)*.0045};});
 function releaseAim(e){if(aimPointer!==e.pointerId)return;control();aimPointer=null;drag=null;}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('world').addEventListener(name,releaseAim);
-window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)return;const k=e.key.toLowerCase();if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();keys.add(k);}else if(k===' '&&!e.repeat){e.preventDefault();fire();}else if(/^[1-5]$/.test(k))select(['uav','missile','artillery','sam','mg'][Number(k)-1]);else if(k==='f'){$('returnVehicle').click();}else if(k==='escape')showPause();});
+window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)return;const k=e.key.toLowerCase();if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();keys.add(k);}else if(k===' '&&!e.repeat){e.preventDefault();fire();}else if(/^[1-5]$/.test(k))select(view.own.weapons[Number(k)-1]);else if(k==='f'){$('returnVehicle').click();}else if(k==='escape')showPause();});
 window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());if(e.key===' ')stopFire();});
 window.showPause=showPause;
 window.onNativeBack=function(){if(modalKind==='interrupted'){returnMenu();return;}if(modalKind==='pause'){paused=false;closeModal();return;}if(screen==='battle'){if(view&&view.over)returnMenu();else showPause();}else if(modalKind){if(['waiting','join','interrupted'].includes(modalKind)){disconnect(false);lanMenu();}else closeModal();}else if(native&&native.finishApp)native.finishApp();};
@@ -187,7 +215,7 @@ function frame(now){const elapsed=Math.min(.1,(now-lastFrame)/1000);lastFrame=no
  requestAnimationFrame(frame);
 }
 soundUI();requestAnimationFrame(frame);
-if(isTest)window.GameDebug={openRemote,onlineJoin,start:startAI,get engine(){return engine;},get view(){return view;},get renderer(){return renderer;},get audio(){return audio;},get selected(){return selected;},get netRole(){return netRole;},get transport(){return transport;},get remote(){return remote;},dispatch,select,fire,stopFire,updateHUD,pause:showPause,returnMenu,control};
+if(isTest)window.GameDebug={openRemote,onlineJoin,start:startAI,get profile(){return profile;},get engine(){return engine;},get view(){return view;},get renderer(){return renderer;},get audio(){return audio;},get selected(){return selected;},get netRole(){return netRole;},get transport(){return transport;},get remote(){return remote;},dispatch,select,fire,stopFire,updateHUD,pause:showPause,returnMenu,control};
 
 // Agent access uses the same visible start/menu actions; battle state is read-only.
 const modelContext=document.modelContext;

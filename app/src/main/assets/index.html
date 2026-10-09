@@ -16,16 +16,17 @@
 </defs></svg>
 <div id="worldStage"><canvas id="world" aria-label="3D战场，可拖动瞄准"></canvas></div>
 <main id="menu" class="screen menu">
- <div class="menu-top"><span class="eyebrow"><i></i> BLINDFIRE / 3D</span><button class="icon-button sound-button" aria-label="开关声音"><svg><use href="#i-sound"/></svg></button></div>
+ <div class="menu-top"><span class="eyebrow"><i></i> BLINDFIRE / 3D</span><div class="wallet" aria-label="战币余额"><span>战币</span><b id="coinBalance">0</b></div><button class="icon-button sound-button" aria-label="开关声音"><svg><use href="#i-sound"/></svg></button></div>
  <div class="brand"><div class="brand-index">未知敌情 / 手动交火</div><h1>盲区<br><span>交火</span><b>。</b></h1><p>每一次攻击，<br>也是一条情报。</p><div class="edition-tag"><span>3D</span> 第三人称战术对战</div></div>
  <div class="menu-bottom"><div class="difficulty"><span>训练难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button><button data-difficulty="hard">困难</button></div>
  <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span></button>
  <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同网对战</small></button>
- <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.7</span></div></div>
+ <div class="garage-actions"><button id="openShop">商城</button><button id="openWarehouse">仓库</button></div>
+ <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.8</span></div></div>
 </main>
 <main id="battle" class="screen battle hidden">
  <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
- <div class="health"><span>发射车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div>
+ <div class="health"><span id="vehicleName">悍驴导弹车</span><div class="hp-track"><i id="hpBar"></i></div><b id="hpNumber">100</b></div>
  <div class="intel-panel"><span class="eyebrow">CONTACT / INTEL</span><div id="intelBadge" class="intel-badge">敌情未知</div><div id="threatAlert" class="hidden">空中威胁</div></div>
  <div class="mini-wrap"><canvas id="mini" aria-label="小型情报雷达"></canvas><span>2km × 2km · 北向上</span></div>
  <div id="cameraBadge" class="camera-badge"><i></i><span>发射车 / 第三人称</span></div>
@@ -48,5 +49,5 @@
 <div id="damageFlash" class="damage-flash"></div>
 <div id="graphicsError" class="graphics-error hidden"><span class="eyebrow">3D DISPLAY</span><h3>无法启动 3D 画面</h3><p>请更新手机的 Android System WebView / Chrome 后重新打开游戏。此版本需要 WebGL 2。</p><button onclick="location.reload()">重试</button></div>
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div id="modalCard" class="modal-card"></div></div>
-<script src="engine.js"></script><script type="module" src="app.js"></script>
+<script src="engine.js"></script><script src="progress.js"></script><script type="module" src="app.js"></script>
 </body></html>

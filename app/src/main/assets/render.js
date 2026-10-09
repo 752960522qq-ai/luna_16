@@ -1,5 +1,6 @@
 import * as THREE from './three.module.js';
 import { GLTFLoader } from './GLTFLoader.js';
+import { splitAvengerWheels } from './vehicle-wheels.js';
 const B = window.Blindfire, FORWARD = new THREE.Vector3(0, 0, -1);
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, ...opts });
 const palette = { body: mat('#496153'), hostile: mat('#785049'), hostileAir: mat('#905b50'), trim: mat('#273b35'), dark: mat('#1b2729'), steel: mat('#7c8b82'), glass: mat('#14343e'), tire: mat('#202425'), white: mat('#edf1d9'), sand: mat('#c2bca0'), roof: mat('#8b8571'), flame: new THREE.MeshBasicMaterial({color:'#ffb461'}), bullet: new THREE.MeshBasicMaterial({color:'#ffeabd'}) };
@@ -87,7 +88,7 @@ export class Renderer{
     for(let i=0;i<models.length;i++){
       const scene=models[i].scene,bounds=new THREE.Box3().setFromObject(scene),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
       scene.position.add(new THREE.Vector3(-center.x,-bounds.min.y,-center.z));const model=new THREE.Group();model.rotation.y=Math.PI/2;model.scale.setScalar(14/size.x);model.add(scene);
-      const g=i===0?this.ownTruck:this.enemyTruck;this.disposeGroup(g);g.clear();g.add(model);g.userData={model:true,source:'M1097 Avenger',patches:2};
+      const wheels=splitAvengerWheels(model),g=i===0?this.ownTruck:this.enemyTruck;this.disposeGroup(g);g.clear();g.add(model);g.userData={model:true,source:'M1097 Avenger',patches:2,wheels};
     }
     this.modelsReady=true;
   }
@@ -111,7 +112,7 @@ export class Renderer{
   }
   resize(){if(!this.ready)return;this.gl.setSize(innerWidth,innerHeight,false);this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
   orient(g,s){g.position.set(s.x,s.y,s.z);g.rotation.set(s.pitch,-s.yaw,0,'YXZ');}
-  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model)return;const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=t*p.speed/1.65;}
+  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels)w.pivot.rotation.y=-(p.wheelTravel||0)/w.radius*w.axisSign;return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels)w.rotation.x=-(p.wheelTravel||0)/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;const demo=!view;
     const p=view?view.own:{x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};
     this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;

@@ -2,11 +2,12 @@ const assert=require('node:assert/strict');
 const {Engine,C,W,H,RECON_RANGE,RECON_RANGES,INTEL_LIFE,terrain,dist,dist3,ballistic,muzzle,GRAVITY,SHELL_SPEED,TRAIL_LIFE,ARTILLERY,ORBIT_RADIUS}=require('../app/src/main/assets/engine.js');
 let passed=0;
 function test(name,fn){fn();passed++;console.log('PASS',name);}
-function setup(opts={}){const e=new Engine({seed:42,mode:'lan',countdown:0,...opts});for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}return e;}
+// Full-loadout fixture exercises the reserved artillery implementation for future vehicles.
+function setup(opts={}){const e=new Engine({seed:42,mode:'lan',countdown:0,...opts});for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}for(const p of e.players)p.weapons.push('artillery');return e;}
 function tick(e,time){for(let t=0;t<time-1e-8;t+=1/120)e.update(Math.min(1/120,time-t));}
 function weapon(e,id,k,yaw=0,pitch=.24){assert.equal(e.command(id,{type:'vehicle'}).ok,true);assert.equal(e.command(id,{type:'select',weapon:k}).ok,true);assert.equal(e.command(id,{type:'aim',yaw,pitch}).ok,true);}
 function target(e,position){weapon(e,1,'uav',0,.1);const r=e.command(1,{type:'fire'});const s=e.shots.find(s=>s.id===r.id);Object.assign(s,position,{speed:0});return s;}
-test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,6);}}assert.equal('decoy' in C,false);});
+test('random separated spawns and completely hidden initial enemy',()=>{for(let seed=1;seed<=50;seed++){const e=new Engine({seed,mode:'lan'});assert.ok(dist(e.players[0],e.players[1])>950);for(let id=0;id<2;id++){const v=e.snapshot(id);assert.equal(v.enemy,null);assert.equal(v.own.hp,100);assert.equal(v.shots.length,0);assert.equal(v.version,7);}}assert.equal('decoy' in C,false);});
 test('the physical field is exactly 2km by 2km and all spawns cover it',()=>{assert.equal(W,2000);assert.equal(H,2000);assert.equal(RECON_RANGE,300);assert.equal(INTEL_LIFE,5);const xs=[],zs=[];for(let seed=1;seed<=80;seed++){const e=new Engine({seed,mode:'lan'});for(const p of e.players){assert.ok(p.x>0&&p.x<W&&p.z>0&&p.z<H);xs.push(p.x);zs.push(p.z);}}assert.ok(Math.max(...xs)>1700&&Math.max(...zs)>1700);const e=setup(),p=e.players[0];Object.assign(p,{x:1990,z:1990,yaw:Math.PI/2,speed:33});e.command(0,{type:'control',throttle:1,steer:0});tick(e,.5);assert.ok(p.x<=1990);});
 test('vehicle 300m boundary reveals enemies and removes world/radar intel together after 5 seconds',()=>{const e=setup(),p=e.players[0],foe=e.players[1];Object.assign(foe,{x:p.x,z:p.z-301,y:p.y});e.updateIntel();assert.equal(e.snapshot(0).enemy,null);foe.z=p.z-300;e.updateIntel();assert.equal(e.snapshot(0).enemy.retained,false);const last=foe.z;foe.z=p.z-330;e.updateIntel();assert.equal(e.snapshot(0).enemy.z,last);tick(e,4.8);assert.ok(e.snapshot(0).enemy);tick(e,.25);assert.equal(e.snapshot(0).enemy,null);});
 test('UAV 400m and cruise missile 200m boundaries preserve five-second intel from either camera',()=>{
@@ -111,8 +112,8 @@ test('hard AI uses legal SAM reload and MG fallback without increasing damage or
  for(const ready of[true,false]){
   const e=setup({mode:'ai',difficulty:'hard'}),p=e.players[1];p.cd.uav=30;p.cd.sam=ready?0:10;
   weapon(e,0,'uav');const r=e.command(0,{type:'fire'}),q=e.shots.find(s=>s.id===r.id);Object.assign(q,{x:p.x+100,y:p.y+45,z:p.z-110,speed:0});e.command(0,{type:'vehicle'});
-  tick(e,.02);if(ready){assert.ok(p.cd.sam>24.9&&p.cd.sam<=25);assert.ok(e.shots.some(s=>s.owner===1&&s.kind==='sam'));}else{assert.equal(p.selected,'mg');assert.equal(p.mg,true);}
-  tick(e,1.5);assert.equal(e.shots.includes(q),false);assert.equal(p.stats.intercepted,1);assert.equal(p.hp,100);
+  tick(e,.02);if(ready){assert.ok(p.cd.sam>24.9&&p.cd.sam<=25);assert.ok(e.shots.some(s=>s.owner===1&&s.kind==='sam'));}else{assert.equal(p.selected,'mg');assert.equal(p.mg,false);assert.equal(p.selected,'mg');}
+  tick(e,4);assert.equal(e.shots.includes(q),false);assert.equal(p.stats.intercepted,1);assert.equal(p.hp,100);
  }
 });
 test('hard AI maintains UAV recon, uses high arc artillery and relocates after firing',()=>{
