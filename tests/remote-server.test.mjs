@@ -2,7 +2,7 @@ import assert from'node:assert/strict';
 import{openRelay}from'./room-server.mjs';
 import engine from'../app/src/main/assets/engine.js';
 const{server,raw,url}=await openRelay();
-async function post(path,data){const r=await fetch(url+'/api/rooms/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:7,...data})});return{status:r.status,...await r.json()};}
+async function post(path,data){const r=await fetch(url+'/api/rooms/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:8,...data})});return{status:r.status,...await r.json()};}
 try{
  const host=await post('create',{});assert.equal(host.role,'host');assert.match(host.code,/^\d{4}$/);assert.equal(host.token.length,48);
  const join=await Promise.all([post('join',{code:host.code}),post('join',{code:host.code})]);assert.equal(join.filter(x=>x.status===200).length,1);const guest=join.find(x=>x.status===200);

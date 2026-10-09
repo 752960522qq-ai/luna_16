@@ -2,6 +2,6 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.luna.blindfire'
     compileSdk 35
-    defaultConfig { applicationId 'com.luna.blindfire'; minSdk 23; targetSdk 35; versionCode 9; versionName '0.8' }
+    defaultConfig { applicationId 'com.luna.blindfire'; minSdk 23; targetSdk 35; versionCode 10; versionName '0.9' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
 }

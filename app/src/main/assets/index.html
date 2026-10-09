@@ -21,8 +21,8 @@
  <div class="menu-bottom"><div class="difficulty"><span>训练难度</span><button data-difficulty="easy">新兵</button><button data-difficulty="standard" class="chosen">标准</button><button data-difficulty="hard">困难</button></div>
  <button id="startAI" class="start-button"><span><small>SOLO / OFFLINE</small>单人训练</span></button>
  <button id="openLAN" class="lan-button"><span><svg><use href="#i-link"/></svg>双人交火</span><small>同网对战</small></button>
- <div class="garage-actions"><button id="openShop">商城</button><button id="openWarehouse">仓库</button></div>
- <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.8</span></div></div>
+ <div class="garage-actions"><button id="openShop">商城</button><button id="openWarehouse">仓库</button><button id="openTutorial">新手引导</button></div>
+ <div class="menu-foot"><button id="openGuide">作战指南 <span>↗</span></button><span>BLINDFIRE · v0.9</span></div></div>
 </main>
 <main id="battle" class="screen battle hidden">
  <header class="battle-header"><div><span class="eyebrow" id="modeLabel">单人训练</span><h2>盲区交火<span class="live-dot"></span></h2></div><div class="header-right"><span id="timer">03:00</span><button id="pauseButton" class="icon-button" aria-label="暂停"><svg><use href="#i-pause"/></svg></button></div></header>
@@ -33,7 +33,7 @@
  <div id="ballisticPanel" class="ballistic-panel hidden"><div class="ballistic-heading"><span>曲射弹道</span><button id="artilleryMode" aria-label="切换为平射模式">改为平射</button></div><canvas id="ballisticScope" width="240" height="116" aria-label="火炮抛物线剖面"></canvas></div>
  <div id="reticle" class="reticle"><i></i><b></b><span></span></div>
  <div id="countdown" class="countdown hidden"></div><div id="toast" class="toast hidden"></div>
- <div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
+ <button id="mapAimToggle" class="map-aim-toggle hidden">地图瞄准</button><div id="enemyDots"></div><div id="tutorialPanel" class="tutorial-panel hidden"><b id="tutorialTitle"></b><p id="tutorialText"></p><button id="tutorialNext" class="btn">继续</button></div><div id="flightInfo" class="flight-info"><span id="flightMode">发射车</span><b id="altitude">速度 0 m/s</b><small id="aimInfo">仰角 14°</small></div>
  <div class="camera-actions"><button id="returnVehicle" class="hidden"><svg><use href="#i-truck"/></svg>返回车辆</button><button id="takeUAV" class="hidden"><svg><use href="#i-uav"/></svg>接管无人机</button><button id="uavOrbit" class="hidden"><svg><use href="#i-uav"/></svg><span id="uavOrbitLabel">50m盘旋</span></button></div>
  <div id="eventLine" class="event-line"><i></i><span>敌方位置未知 · 侦察或观察空中尾迹</span></div>
  <div id="joystick" class="joystick" role="slider" tabindex="0" aria-label="驾驶和飞行摇杆"><div class="stick-arrows"><span>↑</span><span>← · →</span><span>↓</span></div><div id="stickKnob" class="stick-knob"></div><span id="stickLabel" class="stick-label">驾驶 / 转向</span></div>
@@ -49,5 +49,5 @@
 <div id="damageFlash" class="damage-flash"></div>
 <div id="graphicsError" class="graphics-error hidden"><span class="eyebrow">3D DISPLAY</span><h3>无法启动 3D 画面</h3><p>请更新手机的 Android System WebView / Chrome 后重新打开游戏。此版本需要 WebGL 2。</p><button onclick="location.reload()">重试</button></div>
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div id="modalCard" class="modal-card"></div></div>
-<script src="engine.js"></script><script src="progress.js"></script><script type="module" src="app.js"></script>
+<script src="engine.js"></script><script src="progress.js"></script><script src="tutorial.js"></script><script type="module" src="app.js"></script>
 </body></html>

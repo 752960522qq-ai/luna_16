@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),fs=require(
  page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(url);await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady);await page.evaluate(()=>document.fonts.ready);
-  assert.equal(await page.locator('#coinBalance').textContent(),'0');await page.locator('#openShop').click();assert.ok((await page.locator('#modalCard').textContent()).includes('暂无商品'));await page.locator('#shopClose').click();
+  assert.equal(await page.locator('#coinBalance').textContent(),'0');await page.locator('#openShop').click();assert.ok((await page.locator('#modalCard').textContent()).includes('500战币'));await page.locator('#shopClose').click();
   await page.locator('#openWarehouse').click();await page.locator('#vehicle-handlv_missile').click();assert.equal(await page.locator('#modalCard h3').textContent(),'悍驴导弹车');assert.equal(await page.locator('.weapon-spec').count(),4);assert.equal(await page.locator('[data-spec="artillery"]').count(),0);
   const info=await page.locator('#modalCard').textContent();for(const text of['100 HP','33 m/s','300 m','400 m','200 m','25 秒','22 秒','10 秒','无冷却'])assert.ok(info.includes(text),text);
   await page.locator('#vehicleBack').click();await page.locator('#warehouseClose').click();

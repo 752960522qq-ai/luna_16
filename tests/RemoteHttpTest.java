@@ -18,14 +18,14 @@ public final class RemoteHttpTest {
     static final class Reply {final int status;final String body,error;Reply(int status,String body,String error){this.status=status;this.body=body;this.error=error;}}
     static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     static String field(String body,String key){Matcher m=Pattern.compile("\""+key+"\":\"([^\"]+)\"").matcher(body);check(m.find(),"Missing response field: "+key);return m.group(1);}
-    static String auth(String code,String token){return "\"version\":7,\"code\":\""+code+"\",\"token\":\""+token+"\"";}
+    static String auth(String code,String token){return "\"version\":8,\"code\":\""+code+"\",\"token\":\""+token+"\"";}
     static void success(Reply r){check(r.status==200,"Native room request failed: HTTP "+r.status+" "+r.error);}
     public static void main(String[] args)throws Exception{
         String url=args[0]+"/api/rooms/";Client a=new Client(url),b=new Client(url);String code=null,key=null;
         try {
-            Reply created=a.post("create","{\"version\":7}");success(created);code=field(created.body,"code");key=field(created.body,"token");check(code.matches("[0-9]{4}"),"Expected four-digit room code");
-            Reply joined=b.post("join","{\"version\":7,\"code\":\""+code+"\"}");success(joined);String guest=field(joined.body,"token");check(!guest.equals(key),"Roles must have independent private credentials");
-            String state="{\"type\":\"state\",\"view\":{\"version\":7,\"t\":1,\"own\":{\"x\":250,\"y\":10,\"z\":500},\"shots\":[],\"sounds\":[]}}";
+            Reply created=a.post("create","{\"version\":8}");success(created);code=field(created.body,"code");key=field(created.body,"token");check(code.matches("[0-9]{4}"),"Expected four-digit room code");
+            Reply joined=b.post("join","{\"version\":8,\"code\":\""+code+"\"}");success(joined);String guest=field(joined.body,"token");check(!guest.equals(key),"Roles must have independent private credentials");
+            String state="{\"type\":\"state\",\"view\":{\"version\":8,\"t\":1,\"own\":{\"x\":250,\"y\":10,\"z\":500},\"shots\":[],\"sounds\":[]}}";
             Reply host=a.post("exchange","{"+auth(code,key)+",\"state\":"+state+",\"stateSeq\":1,\"ack\":0}");success(host);check(host.body.contains("\"joined\":true"),"Host not connected");
             String commands="[{\"type\":\"command\",\"seq\":1,\"action\":{\"type\":\"control\",\"throttle\":1,\"steer\":0}}]";
             Reply frame=b.post("exchange","{"+auth(code,guest)+",\"commands\":"+commands+"}");success(frame);check(frame.body.contains("\"x\":250"),"Guest did not receive its view");

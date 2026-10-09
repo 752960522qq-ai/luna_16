@@ -20,7 +20,7 @@ export class RemoteLink{
   if(!REMOTE_ENABLED){const e=new Error('远程联机暂时关闭');e.status=503;throw e;}
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),timeout);this.inflight=abort;
   try{
-   const body=JSON.stringify({version:7,...data});
+   const body=JSON.stringify({version:8,...data});
    if(typeof window.Native?.remoteRequest==='function'){const r=await nativeRequest(path,body,abort.signal,timeout);if(r.error)throw new Error(r.error);return parseResponse(r.status,r.body);}
    // Simple CORS request: JSON text without the preflight blocked by the service gateway.
    const response=await fetch(REMOTE_ORIGIN+'/api/rooms/'+path,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,signal:abort.signal,cache:'no-store'});return parseResponse(response.status,await response.text());

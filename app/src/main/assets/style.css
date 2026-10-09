@@ -31,3 +31,16 @@
 @media(max-height:640px){.menu{padding-top:14px;padding-bottom:14px}.menu .brand{margin-top:12px}.menu .brand-index{margin-bottom:8px}.menu .brand h1{font-size:42px}.menu .brand p{margin:7px 0;font-size:11px}.menu .edition-tag{margin-top:6px}.menu .difficulty{margin-bottom:8px}.menu .start-button{padding:11px 16px}.menu .lan-button{padding:11px 16px;margin-top:8px}.garage-actions{margin-top:8px}.garage-actions button{padding:10px}.menu .menu-foot{margin-top:10px}}
 
 .vehicle-detail-header{position:sticky;top:-25px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#1a3027;z-index:1;padding-top:8px}.vehicle-detail-header h3{font-size:22px}.detail-back{font-size:10px;white-space:nowrap;padding:8px;background:#263f30;border:1px solid #8ca88460;border-radius:3px}
+
+.map-aim-toggle{position:absolute;right:12px;top:31%;z-index:20;background:#263d30;color:#f5edbb;padding:10px;border:1px solid #b9bb83;border-radius:8px}
+.enemy-dot{position:absolute;width:12px;height:12px;border:2px solid #fff3ce;background:#ff2424;border-radius:50%;box-shadow:0 0 10px #f44;transform:translate(-50%,-50%);pointer-events:none}
+.tutorial-panel{position:absolute;left:12px;right:12px;top:16%;z-index:35;background:rgba(13,32,25,.94);border:1px solid #e9ca61;border-radius:12px;padding:12px;pointer-events:auto;font-size:14px}
+.tutorial-panel p{margin:8px 0}.tutorial-panel .btn{padding:8px;min-height:32px}.tutorial-highlight{outline:3px solid #f7db62!important;box-shadow:0 0 20px #eacc63!important}
+#enemyDots{position:absolute;inset:0;pointer-events:none;z-index:18}
+.garage-actions{grid-template-columns:repeat(3,1fr)!important}
+
+/* Keep the teaching card clear of the radar; aim gestures pass through the card. */
+.tutorial-panel{top:245px;pointer-events:none;font-size:13px;line-height:1.45}
+.tutorial-panel button{pointer-events:auto}
+.map-aim-toggle{left:20px;right:auto;top:242px}
+@media(max-height:650px){.tutorial-panel{top:202px;padding:9px;font-size:12px}.tutorial-panel p{margin:5px 0}.map-aim-toggle{top:190px}}

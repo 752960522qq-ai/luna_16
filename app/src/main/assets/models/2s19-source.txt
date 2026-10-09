@@ -1,0 +1,3 @@
+2S19 MSTA-S Self-Propelled Artillery
+Source: user-provided 2s19_msta-s_self-propelled_artillery.glb, 2026-10-09.
+Original embedded textures and geometry retained. Articulation added at runtime in vehicle-parts.js.

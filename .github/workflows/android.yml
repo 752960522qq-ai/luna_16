@@ -29,6 +29,7 @@ jobs:
         run: |
           node tests/engine.test.js
           node tests/garage.test.cjs
+          node tests/artillery-expansion.test.cjs
       - name: Model checks
         run: python3 tests/models.test.py
       - name: Native LAN and remote transport checks
@@ -40,13 +41,13 @@ jobs:
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.8-local-recon-debug-apk
+          name: blindfire-v0.9-local-recon-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
       - name: Build TapTap H5 upload package
-        run: python3 scripts/build_h5.py --output build/blindfire-v0.8-taptap-h5.zip
+        run: python3 scripts/build_h5.py --output build/blindfire-v0.9-taptap-h5.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.8-taptap-h5
-          path: build/blindfire-v0.8-taptap-h5.zip
+          name: blindfire-v0.9-taptap-h5
+          path: build/blindfire-v0.9-taptap-h5.zip
           retention-days: 30
