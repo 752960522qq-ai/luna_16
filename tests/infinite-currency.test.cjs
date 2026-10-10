@@ -5,7 +5,7 @@ const values=new Map();
 const storage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)};
 const p=new Progress(storage,{infiniteCoins:true});
 assert.equal(p.coins,Number.MAX_SAFE_INTEGER);
-assert.equal(p.purchase('longnose_artillery'),true);
+assert.equal(p.purchase('longnose_artillery'),false);p.research.artillery=2500;assert.ok(p.researchVehicle('longnose_artillery'));assert.equal(p.purchase('longnose_artillery'),true);
 assert.ok(p.owned.includes('longnose_artillery'));
 assert.equal(p.coins,Number.MAX_SAFE_INTEGER);
 assert.equal(p.purchase('longnose_artillery'),false);

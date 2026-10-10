@@ -2,7 +2,7 @@ import * as THREE from './three.module.js';
 import { mergeGeometries } from './BufferGeometryUtils.js';
 import { GLTFLoader } from './GLTFLoader.js';
 import { MeshoptDecoder } from './meshopt_decoder.module.js';
-import { articulateBear,articulateAvenger,rollTracks } from './vehicle-parts.js';
+import { articulateBear,articulateAvenger,rollTracks,articulateKFZ,articulateTank,rollBelts } from './vehicle-parts.js';
 import { splitAvengerWheels } from './vehicle-wheels.js';
 const B = window.Blindfire, FORWARD = new THREE.Vector3(0, 0, -1);
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, ...opts });
@@ -60,7 +60,7 @@ function aircraft(kind,hostile){
   if(kind==='uav'){
     box(g,0,0,0,2.3,1.2,5,body);box(g,0,.1,.5,13,.22,2.3,body);box(g,0,.3,2,5,.2,1.4,body);box(g,0,.85,2,.22,1.5,1.5,palette.trim);
     const nose=new THREE.Mesh(new THREE.ConeGeometry(1.1,2,8),body);nose.rotation.x=-Math.PI/2;nose.position.z=-3.1;g.add(nose);box(g,0,-.7,-1,.65,.6,.65,palette.dark);g.userData.prop=box(g,0,.05,-4.3,3.4,.13,.15,palette.dark);
-  }else if(kind==='bullet')box(g,0,0,0,.2,.2,3,palette.bullet);
+  }else if(['bullet','autocannon'].includes(kind))box(g,0,0,0,.2,.2,3,palette.bullet);
   else{
     const r=kind==='artillery'?.3:kind==='sam'?.4:.65,len=kind==='artillery'?1.3:kind==='sam'?4:6;
     const shaft=cylinder(g,0,0,0,r,r,len,body,8);shaft.rotation.x=Math.PI/2;
@@ -102,8 +102,9 @@ export class Renderer{
       this.vehicleModels[i].longnose_artillery={node:bm,model:true,source:'2S19 MSTA-S',...parts};
       const grille=(await loader.loadAsync('models/kfz_grille.glb')).scene,gun=[];grille.updateMatrixWorld(true);grille.traverse(o=>{if(o.isMesh&&/polySurface387(05|23|06)_Gun/.test(o.name))gun.push(o);});
       if(gun.length!==3)throw Error('KFZ barrel parts missing');const gb=new THREE.Box3();for(const o of gun)gb.union(new THREE.Box3().setFromObject(o));const pivot=new THREE.Group();pivot.position.set(gb.getCenter(new THREE.Vector3()).x,gb.getCenter(new THREE.Vector3()).y,gb.max.z-.3);grille.add(pivot);grille.updateMatrixWorld(true);for(const o of gun)pivot.attach(o);
-      this.vehicleModels[i].kfz_artillery={node:grille,model:true,wheels:[],barrel:pivot};
+      this.vehicleModels[i].kfz_artillery={node:grille,model:true,...articulateKFZ(grille),barrel:pivot};
     }
+    for(let i=0;i<2;i++)this.vehicleModels[i].b_tank=articulateTank((await loader.loadAsync('models/panzer_ii.glb')).scene);
     this.airModels={};for(const [kind,file] of [['reconPlane','fi156.glb'],['bomber','ju87_redtail.glb']])this.airModels[kind]=(await loader.loadAsync('models/'+file)).scene;
     this.switchVehicle(this.ownTruck,0,B.DEFAULT_VEHICLE);this.switchVehicle(this.enemyTruck,1,B.DEFAULT_VEHICLE);this.modelsReady=true;const preview=document.getElementById("vehiclePreview");if(preview?.dataset.vehicle)this.showPreview(preview,preview.dataset.vehicle);
   }
@@ -136,13 +137,13 @@ export class Renderer{
   }
   resize(){if(!this.ready)return;this.gl.setSize(innerWidth,innerHeight,false);this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
   orient(g,s){g.position.set(s.x,s.y,s.z);g.rotation.set(s.pitch,-s.yaw,0,'YXZ');}
-  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels||[])w.pivot.rotation[w.axis||'y']=-(p.wheelTravel||0)/w.radius*w.axisSign;
-      const a=p.aim?.[selected]||{yaw:p.yaw,pitch:0};
+  updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;if(g.userData.model){for(const w of g.userData.wheels||[])w.pivot.rotation[w.axis||'y']=-(w.side&&p.trackTravel?p.trackTravel[w.side]:(p.wheelTravel||0))/w.radius*w.axisSign;
+      const a=p.aim?.[g.userData.vehicleId==='b_tank'?'autocannon':selected]||{yaw:p.yaw,pitch:0};
 
       if(g.userData.launcher)g.userData.launcher.rotation.z=-(a.yaw-p.yaw);
-      if(g.userData.turret)g.userData.turret.rotation.z=-(a.yaw-p.yaw);
-      if(g.userData.barrel)g.userData.barrel.rotation.x=selected==='artillery'?a.pitch:0;
-      if(g.userData.tracks&&g.userData.lastTravel!==p.wheelTravel){rollTracks(g.userData.tracks,p.wheelTravel||0);g.userData.lastTravel=p.wheelTravel;}
+      if(g.userData.turret)g.userData.turret.rotation[g.userData.turretAxis||'z']=-(a.yaw-p.yaw);
+      if(g.userData.barrel)g.userData.barrel.rotation.x=(['artillery','autocannon'].includes(selected)||g.userData.vehicleId==='b_tank')?(g.userData.vehicleId==='b_tank'?-a.pitch:a.pitch):0;
+      if(g.userData.tracks&&g.userData.lastTravel!==`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`){(g.userData.tracks.belts?rollBelts:rollTracks)(g.userData.tracks,g.userData.tracks.belts?(p.trackTravel||p.wheelTravel||0):(p.wheelTravel||0));g.userData.lastTravel=`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`;}
       return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels||[])w.rotation.x=-(p.wheelTravel||0)/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&view.field.mapId!==this.landscapeMap)this.setMap(view.field.mapId);const demo=!view;
     const p=view?view.own:{x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};

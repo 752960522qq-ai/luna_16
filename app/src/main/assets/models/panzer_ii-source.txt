@@ -1,0 +1,4 @@
+Model supplied by the user: panzer_ii_light_tank_-_toshueyi(1).glb.
+Meshopt compression preserves the source meshes, positions, normals and materials.
+Runtime articulation separates original connected pieces for turret, gun, wheels and tracks.
+Body dimensions: 4.81m long, 2.28m wide, 2.02m high; the radio antenna is retained above the body.
