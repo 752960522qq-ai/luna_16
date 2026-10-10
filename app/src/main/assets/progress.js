@@ -5,7 +5,7 @@
  const KEY='bf-profile-v1',REWARDS=Object.freeze({win:100,draw:50,loss:25}),INFINITE_COINS=Number.MAX_SAFE_INTEGER;
  class Progress{
   constructor(storage,options={}){
-   this.storage=storage;this.infiniteCoins=options.infiniteCoins===true;this.saved=true;this.coins=0;this.owned=[B.DEFAULT_VEHICLE];this.selected=B.DEFAULT_VEHICLE;this.claimed=[];this.tutorialDone=false;this.research={missile:0,artillery:0,tank:0};this.researched=Object.values(B.VEHICLES).filter(v=>!v.researchCost).map(v=>v.id);this.lastResearch=0;
+   this.storage=storage;this.infiniteCoins=options.infiniteCoins===true||options.fullUnlockTest===true;this.fullUnlockTest=options.fullUnlockTest===true;this.saved=true;this.coins=0;this.owned=[B.DEFAULT_VEHICLE];this.selected=B.DEFAULT_VEHICLE;this.claimed=[];this.tutorialDone=false;this.research={missile:0,artillery:0,tank:0};this.researched=Object.values(B.VEHICLES).filter(v=>!v.researchCost).map(v=>v.id);this.lastResearch=0;
    try{const data=JSON.parse(storage?.getItem(KEY)||'null');if(data?.version===1||data?.version===2){
     this.tutorialDone=data.tutorialDone===true;
     for(const branch of Object.keys(this.research))this.research[branch]=Number.isSafeInteger(data.research?.[branch])&&data.research[branch]>=0?data.research[branch]:0;
@@ -16,8 +16,9 @@
     this.selected=this.owned.includes(data.selected)?data.selected:B.DEFAULT_VEHICLE;
     this.claimed=Array.isArray(data.claimed)?data.claimed.filter(id=>typeof id==='string'&&id.length<=128).slice(-100):[];
    }}catch(_){this.saved=false;}
-   if(this.infiniteCoins){this.coins=INFINITE_COINS;this.save();}
+   if(this.fullUnlockTest){this.unlockAllForTesting();}else if(this.infiniteCoins){this.coins=INFINITE_COINS;this.save();}
   }
+  unlockAllForTesting(){this.researched=Object.keys(B.VEHICLES);this.owned=Object.keys(B.VEHICLES);for(const branch of Object.keys(this.research))this.research[branch]=INFINITE_COINS;this.coins=INFINITE_COINS;this.tutorialDone=true;this.save();}
   save(){try{if(!this.storage)throw Error('Storage unavailable');this.storage.setItem(KEY,JSON.stringify({version:2,research:this.research,researched:this.researched,coins:this.coins,owned:this.owned,selected:this.selected,claimed:this.claimed,tutorialDone:this.tutorialDone}));this.saved=true;}catch(_){this.saved=false;}return this.saved;}
   researchVehicle(id){const v=B.VEHICLES[id];if(!v||this.researched.includes(id)||this.research[v.branch]<v.researchCost)return false;this.research[v.branch]-=v.researchCost;this.researched.push(id);this.save();return true;}
   purchase(id){const v=B.VEHICLES[id];if(!v||!this.researched.includes(id)||!v.price||this.owned.includes(id)||this.coins<v.price)return false;this.coins-=v.price;this.owned.push(id);if(this.infiniteCoins)this.coins=INFINITE_COINS;this.save();return true;}

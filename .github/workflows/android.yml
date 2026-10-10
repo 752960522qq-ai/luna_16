@@ -1,7 +1,7 @@
 name: Build Android APK
 on:
   push:
-    branches: [main]
+    branches: [main, 'test/**']
   workflow_dispatch:
 jobs:
   build:
@@ -42,15 +42,15 @@ jobs:
           name: blindfire-v0.9-local-recon-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
-      - name: Build infinite-currency test APK
+      - name: Build full-unlock test APK
         run: |
-          gradle assembleDebug -PinfiniteCoins=true
-          mkdir -p build/infinite-currency
-          cp app/build/outputs/apk/debug/app-debug.apk build/infinite-currency/feigun-v0.9-infinite-coins.apk
+          gradle assembleDebug -PfullUnlockTest=true
+          mkdir -p build/full-unlock-test
+          cp app/build/outputs/apk/debug/app-debug.apk build/full-unlock-test/feigun-v0.9-full-unlock-test.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: blindfire-v0.9-infinite-currency-test-apk
-          path: build/infinite-currency/feigun-v0.9-infinite-coins.apk
+          name: blindfire-v0.9-full-unlock-test-apk
+          path: build/full-unlock-test/feigun-v0.9-full-unlock-test.apk
           retention-days: 30
       - name: Build TapTap H5 upload package
         run: python3 scripts/build_h5.py --output build/blindfire-v0.9-taptap-h5.zip

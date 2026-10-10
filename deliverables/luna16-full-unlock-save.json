@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "research": {
+    "missile": 0,
+    "artillery": 0,
+    "tank": 0
+  },
+  "researched": [
+    "handlv_missile",
+    "longnose_artillery",
+    "kfz_artillery",
+    "b_tank",
+    "hero_tank",
+    "black_turtle"
+  ],
+  "coins": 100000,
+  "owned": [
+    "handlv_missile",
+    "longnose_artillery",
+    "kfz_artillery",
+    "b_tank",
+    "hero_tank",
+    "black_turtle"
+  ],
+  "selected": "handlv_missile",
+  "claimed": [],
+  "tutorialDone": true
+}
