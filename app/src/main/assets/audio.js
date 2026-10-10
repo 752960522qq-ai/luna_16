@@ -10,7 +10,7 @@ export class GameAudio {
         const Audio=window.AudioContext||window.webkitAudioContext;this.ctx=new Audio();const ctx=this.ctx;
         this.master=ctx.createGain();this.master.gain.value=.7;const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-18;limiter.knee.value=16;limiter.ratio.value=4;limiter.attack.value=.004;limiter.release.value=.15;
         this.analyser=ctx.createAnalyser();this.analyser.fftSize=1024;this.master.connect(limiter);limiter.connect(this.analyser);this.analyser.connect(ctx.destination);
-        for(const[k,seconds]of Object.entries({uav:.75,missile:1.05,artillery:1.05,sam:.7,mg:.14,impact:.35,explosion:1.8,confirm:.12}))this.buffers.set(k,this.makeBuffer(k,seconds));
+        for(const[k,seconds]of Object.entries({uav:.75,missile:1.05,artillery:1.05,autocannon:.28,reload:1.2,sam:.7,mg:.14,impact:.35,explosion:1.8,confirm:.12}))this.buffers.set(k,this.makeBuffer(k,seconds));
         this.engineGain=ctx.createGain();this.engineGain.gain.value=0;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=850;filter.connect(this.engineGain);this.engineGain.connect(this.master);
         this.engineOsc=ctx.createOscillator();this.engineOsc.type='sawtooth';this.engineOsc.frequency.value=44;this.engineOsc.connect(filter);this.engineOsc.start();
         this.engineHarmonic=ctx.createOscillator();this.engineHarmonic.type='triangle';this.engineHarmonic.frequency.value=88;const blend=ctx.createGain();blend.gain.value=.35;this.engineHarmonic.connect(blend);blend.connect(filter);this.engineHarmonic.start();
@@ -25,6 +25,8 @@ export class GameAudio {
       const t=i/rate;seed=(Math.imul(seed,1664525)+1013904223)>>>0;const white=seed/2147483648-1;low+=.025*(white-low);mid+=.22*(white-mid);
       let v=0;
       if(kind==='artillery')v=.9*mid*Math.exp(-t/ .12)+Math.sin(2*Math.PI*(65*t-17*t*t))*.65*Math.exp(-t/.28)+low*2.2*Math.exp(-t/.46);
+      else if(kind==='autocannon')v=(mid*.8+white*.3)*Math.exp(-t/.035)+Math.sin(2*Math.PI*100*t)*.55*Math.exp(-t/.11);
+      else if(kind==='reload'){const pulse=Math.exp(-(((t-.12)/.035)**2))+Math.exp(-(((t-.5)/.06)**2))+Math.exp(-(((t-.95)/.04)**2));v=(mid*.55+Math.sin(2*Math.PI*780*t)*.15)*pulse;}
       else if(kind==='mg')v=(white*.62+mid*.7)*Math.exp(-t/.024)+Math.sin(2*Math.PI*145*t)*.28*Math.exp(-t/.065);
       else if(kind==='explosion')v=low*3.4*Math.exp(-t/.6)+mid*.65*Math.exp(-t/.25)+Math.sin(2*Math.PI*(48*t-6*t*t))*.42*Math.exp(-t/.5);
       else if(kind==='impact')v=white*.25*Math.exp(-t/.018)+(Math.sin(2*Math.PI*1430*t)+.55*Math.sin(2*Math.PI*2630*t))*.30*Math.exp(-t/.11);
@@ -56,8 +58,9 @@ export class GameAudio {
     if(this.seen.size>256)this.seen=new Set([...this.seen].slice(-128));
     if(!playing||view.over||!this.enabled||!this.ctx||this.ctx.state!=='running'){this.stopLoops();return;}
     const own=view.own,pilot=view.shots.find(s=>s.mine&&s.id===own.pilot),distance=pilot?Math.hypot(pilot.x-own.x,pilot.y-own.y,pilot.z-own.z):0;
-    this.engineLevel=(.032+Math.min(1,Math.abs(own.speed)/33)*.055)*Math.max(0,1-distance/180)**2;
-    const t=this.ctx.currentTime,rpm=44+Math.abs(own.speed)*1.6;this.engineOsc.frequency.setTargetAtTime(rpm,t,.13);this.engineHarmonic.frequency.setTargetAtTime(rpm*2,t,.13);this.engineGain.gain.setTargetAtTime(this.engineLevel,t,.07);
+    const tank=own.vehicleId==='b_tank',ratio=Math.min(1,Math.abs(own.speed)/(tank?44/3.6:33));
+    this.engineLevel=(tank?.048:.032)+ratio*(tank?.075:.055);this.engineLevel*=own.hp!==0?1:0;this.engineLevel=this.engineLevel*Math.max(0,1-distance/180)**2;
+    const t=this.ctx.currentTime,rpm=(tank?32:44)+ratio*(tank?55:53);this.engineOsc.frequency.setTargetAtTime(rpm,t,.13);this.engineHarmonic.frequency.setTargetAtTime(rpm*2,t,.13);this.engineGain.gain.setTargetAtTime(this.engineLevel,t,.07);
     const listener=pilot||own,drone=view.shots.find(s=>s.mine&&s.kind==='uav'),d=drone?Math.hypot(drone.x-listener.x,drone.y-listener.y,drone.z-listener.z):Infinity;
     this.droneGain.gain.setTargetAtTime(.035*Math.max(0,1-d/160)**2,t,.09);
   }

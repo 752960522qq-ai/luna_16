@@ -1,0 +1,7 @@
+User supplied 9p149_shturm-s.glb (file 1), used for 黑甲鱼.
+9P149 Shturm-S by 42manako: https://sketchfab.com/42manako
+Source: https://sketchfab.com/3d-models/9p149-shturm-s-d66ff45f5bcb47dba9cb3f0d2449f280
+License: CC BY-NC 4.0, http://creativecommons.org/licenses/by-nc/4.0/
+Changes: textures resized to at most 1024px and encoded as WebP quality 90;
+Meshopt geometry compression. Runtime normalization and original launcher/road-wheel articulation;
+GPU texture scrolling on the original continuous treads. Source metadata retained in the GLB.

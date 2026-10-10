@@ -1,0 +1,7 @@
+User supplied is2_soviet_wwii_tank.glb (file 2), used for 战斗英雄号.
+IS2 Soviet WWII Tank by ShaposhnikovG: https://sketchfab.com/ShaposhnikovG
+Source: https://sketchfab.com/3d-models/is2-soviet-wwii-tank-7efb256211eb423cb3f479e96bcb08fc
+License: CC BY 4.0, http://creativecommons.org/licenses/by/4.0/
+Changes: textures resized to at most 1024px and encoded as WebP quality 90;
+Meshopt geometry compression. Runtime normalization and original turret/barrel/road-wheel articulation;
+GPU texture scrolling on the original continuous treads. Source metadata retained in the GLB.

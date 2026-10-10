@@ -44,17 +44,8 @@ test('artillery cannot be selected or intercepted by automatic air defense',()=>
 test('unobserved enemy position, launcher origin and commands are not transmitted',()=>{const e=setup();weapon(e,1,'missile',Math.PI,.35);e.command(1,{type:'fire'});tick(e,1);const v=e.snapshot(0);assert.equal(v.enemy,null);for(const s of v.shots.filter(s=>!s.mine))for(const k of ['owner','sx','sy','sz','tx','ty','tz','targetId','hp','remaining'])assert.equal(k in s,false);assert.equal('decoys' in v,false);assert.equal(e.command(0,{type:'decoy'}).ok,false);assert.equal(e.command(0,{type:'aim',yaw:NaN,pitch:0}).ok,false);assert.equal(e.command(0,{type:'control',throttle:Infinity,steer:0}).ok,false);});
 test('AI searches with its own information instead of reading the hidden opponent',()=>{const a=setup({mode:'ai'}),b=setup({mode:'ai'});for(const e of[a,b]){const p=e.players[1];Object.assign(p,{x:170,z:180,y:terrain(170,180)});}Object.assign(a.players[0],{x:750,z:1120,y:terrain(750,1120)});Object.assign(b.players[0],{x:680,z:1090,y:terrain(680,1090)});tick(a,2);tick(b,2);assert.deepEqual(a.players[1].aim,b.players[1].aim);assert.deepEqual(a.shots.map(s=>[s.kind,s.x,s.y,s.z,s.yaw,s.pitch]),b.shots.map(s=>[s.kind,s.x,s.y,s.z,s.yaw,s.pitch]));assert.equal(a.players[1].intel.lock,null);});
 test('bounded snapshot, full round completion and HP outcome',()=>{const e=setup();for(let i=0;i<180*30;i++){e.update(1/30);if(i%150===0){for(let id=0;id<2;id++){const p=e.players[id];weapon(e,id,'artillery',id?Math.PI:0,.6);e.command(id,{type:'fire'});}assert.ok(Buffer.byteLength(JSON.stringify(e.snapshot(1)))<65536);}}tick(e,.1);assert.equal(e.over,true);assert.equal(e.winner,null);assert.equal(e.snapshot(0).outcome,'draw');});
-test('artillery mode changes aim limits with a shared physical muzzle speed while preserving shared reload',()=>{
- const e=setup(),p=e.players[0];weapon(e,0,'artillery');
- assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,true);assert.equal(p.aim.artillery.pitch,.08);
- e.command(0,{type:'aim',yaw:0,pitch:-1});assert.equal(p.aim.artillery.pitch,ARTILLERY.direct.minPitch);
- e.command(0,{type:'aim',yaw:0,pitch:1});assert.equal(p.aim.artillery.pitch,ARTILLERY.direct.maxPitch);
- const r=e.command(0,{type:'fire'});assert.equal(e.shots.find(s=>s.id===r.id).speed,artilleryParams(p).speed);assert.equal(p.cd.artillery,5);
- assert.equal(e.command(0,{type:'artillery-mode',mode:'curve'}).ok,true);assert.equal(p.cd.artillery,5);assert.equal(e.command(0,{type:'fire'}).ok,false);
- assert.equal(e.command(0,{type:'artillery-mode',mode:'invalid'}).ok,false);e.command(0,{type:'aim',yaw:0,pitch:0});assert.equal(p.aim.artillery.pitch,ARTILLERY.curve.minPitch);
- weapon(e,0,'missile');assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,false);
-});
-test('curve reaches about 1.2km and both modes land at their preview',()=>{
+test('unified artillery spans full vehicle elevation and preserves physical speed/reload',()=>{const e=setup(),p=e.players[0];weapon(e,0,'artillery');assert.equal(e.command(0,{type:'artillery-mode',mode:'direct'}).ok,false);e.command(0,{type:'aim',yaw:0,pitch:-1});assert.equal(p.aim.artillery.pitch,require('../app/src/main/assets/engine.js').VEHICLES.longnose_artillery.minPitch);e.command(0,{type:'aim',yaw:0,pitch:2});assert.equal(p.aim.artillery.pitch,require('../app/src/main/assets/engine.js').VEHICLES.longnose_artillery.maxPitch);const r=e.command(0,{type:'fire'});assert.equal(e.shots.find(s=>s.id===r.id).speed,artilleryParams(p).speed);assert.equal(p.cd.artillery,5);assert.equal(e.command(0,{type:'fire'}).ok,false);});
+test('reserved 1.2km artillery low/high elevations land at their preview',()=>{
  for(const[mode,pitch]of[['curve',Math.PI/4],['direct',.12]]){
   const e=setup(),p=e.players[0];Object.assign(p,{x:1000,z:1880,y:terrain(1000,1880)});weapon(e,0,'artillery');e.command(0,{type:'artillery-mode',mode});e.command(0,{type:'aim',yaw:0,pitch});
   const arc=ballistic(p);assert.ok(arc.hit);if(mode==='curve'){assert.ok(arc.range>1170&&arc.range<1240);assert.ok(Math.max(...arc.points.map(q=>q.y))>200);}
@@ -119,7 +110,7 @@ test('hard AI uses legal SAM reload and MG fallback without increasing damage or
 test('hard AI maintains UAV recon, uses an achievable artillery arc and relocates after firing',()=>{
  const e=setup({mode:'ai',difficulty:'hard'}),p=e.players[1],foe=e.players[0];Object.assign(p,{x:1000,z:1200,y:terrain(1000,1200)});Object.assign(foe,{x:1000,z:650,y:terrain(1000,650)});
  weapon(e,1,'uav');const r=e.command(1,{type:'fire'}),s=e.shots.find(s=>s.id===r.id);Object.assign(s,{x:1000,z:700,y:terrain(1000,700)+65,pitch:0});e.updateIntel();const origin={x:p.x,z:p.z};
- tick(e,1.5);assert.ok(s.orbit);assert.equal(p.artilleryMode,'direct');assert.ok(e.shots.some(s=>s.owner===1&&s.kind==='artillery'));assert.ok(dist(p,origin)>5);assert.ok(e.snapshot(1).enemy);tick(e,11);assert.ok(p.stats.damage>=40);assert.ok(foe.hp<=60);
+ tick(e,1.5);assert.ok(s.orbit);assert.equal(p.artilleryMode,'unified');assert.ok(e.shots.some(s=>s.owner===1&&s.kind==='artillery'));assert.ok(dist(p,origin)>5);assert.ok(e.snapshot(1).enemy);tick(e,11);assert.ok(p.stats.damage>=40);assert.ok(foe.hp<=60);
 });
 test('hard AI predicts only observed movement and expires active tracking after five seconds',()=>{
  const e=setup({mode:'ai',difficulty:'hard'}),p=e.players[1],foe=e.players[0];Object.assign(p,{x:1000,z:1000,y:terrain(1000,1000)});Object.assign(foe,{x:1120,z:1000,y:terrain(1120,1000),yaw:Math.PI/2});p.cd.uav=p.cd.missile=p.cd.artillery=100;

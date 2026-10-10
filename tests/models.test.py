@@ -52,3 +52,16 @@ for faction, color in [('friendly', [0, 0, 1, 1]), ('enemy', [1, 0, 0, 1])]:
         for i, oi in zip(doc['images'], original['images']):
             assert view(doc, binary, i['bufferView']) == view(original, original_binary, oi['bufferView'])
     print(f'PASS {faction}: exactly two small solid patches, valid offline GLB and unchanged original vehicle geometry/textures')
+
+for name, max_size in [('is2.glb', 2_000_000), ('shturm.glb', 1_000_000)]:
+    path = assets / name
+    doc, binary = read(path)
+    assert path.stat().st_size < max_size
+    assert 'EXT_meshopt_compression' in doc['extensionsRequired']
+    assert doc['asset']['extras']['author'] and doc['asset']['extras']['license']
+    assert doc['images'] and all('uri' not in image for image in doc['images'])
+    for image in doc['images']:
+        data = view(doc, binary, image['bufferView'])
+        assert image['mimeType'] == 'image/webp' and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+    assert all('uri' not in buffer or buffer['uri'].startswith('data:') for buffer in doc['buffers'])
+    print(f'PASS {name}: self-contained compressed GLB, embedded WebP textures, source attribution preserved')

@@ -22,12 +22,12 @@ const {open}=require('./browser-helpers.cjs');
    a.sync(null,false);const menu=a.stats.engine;a.reset();const reset=a.voices.size,error=a.stats.error;await a.ctx.close();
    return{idle,driving,buffers,first,duplicate,muted,unmuted,paused,distant,menu,reset,error};
   });
-  assert.ok(results.idle.rms>1e-4);assert.ok(results.driving.level>results.idle.level);assert.ok(results.driving.rpm>85);assert.equal(results.buffers.length,8);
+  assert.ok(results.idle.rms>1e-4);assert.ok(results.driving.level>results.idle.level);assert.ok(results.driving.rpm>85);assert.equal(results.buffers.length,10);
   for(const b of results.buffers){assert.ok(b.rms>.01,b.kind+' buffer is silent');assert.ok(b.seconds>.1);assert.equal(results.first[b.kind],1);}
   assert.deepEqual(results.duplicate,results.first);assert.deepEqual(results.unmuted,results.first);assert.deepEqual(results.paused,results.first);
   assert.ok(results.muted.rms<1e-4,JSON.stringify(results.muted));assert.equal(results.muted.level,0);assert.equal(results.distant,0);assert.equal(results.menu,0);assert.equal(results.reset,0);assert.equal(results.error,null);
   await page.evaluate(()=>onNativePause());await page.waitForFunction(()=>GameDebug.audio.stats.state==='suspended');assert.equal(await page.evaluate(()=>GameDebug.audio.stats.engine),0);
   await page.evaluate(()=>onNativeResume());await page.locator('#resume').click();await page.waitForFunction(()=>GameDebug.audio.stats.state==='running');assert.deepEqual(errors,[]);
-  console.log('PASS real WebAudio: eight non-silent weapon/hit/explosion buffers, RPM engine, event deduplication, mute, pause, distance attenuation and native background/resume');
+  console.log('PASS real WebAudio: ten non-silent weapon/hit/explosion buffers, RPM engine, event deduplication, mute, pause, distance attenuation and native background/resume');
  }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});
