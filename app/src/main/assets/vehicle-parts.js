@@ -95,12 +95,12 @@ export function articulateTank(raw){
  const wheels=new Map(),trackSources=[],batches=new Map();const collect=(parent,geo,material)=>{if(!batches.has(parent))batches.set(parent,[]);batches.get(parent).push({geo,material});};
  for(const original of meshes){const geo=floatGeometry(original.geometry).applyMatrix4(transform.clone().multiply(original.matrixWorld)),mesh=new THREE.Mesh(geo,original.material),body=[];
   for(const part of components(mesh)){const b=part.box,center=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());let parent=scene;
-   const oldY=center.y/(2.02/(2797.44873046875-bb.min.y))* (2.02/size.y);
    if(['Object_17','Object_18','Object_19','Object_20'].includes(original.name)){trackSources.push({geo,ids:part.indices,center,material:mesh.material});continue;}
    if(original.name==='Object_21'||(center.y>1.36&&Math.abs(center.x)<.95&&center.z>-.65&&center.z<1.4))parent=turret;
    if(original.name==='Object_3'&&b.min.y>1.55&&center.z>1.05)parent=barrel;
-   if(Math.abs(center.x)>.74&&b.max.y<.98&&sz.z<.92&&sz.y<.95){const zs=oldY>.44?[-1.109,-.458,.265,1.13]:[-1.918,-1.232,-.618,-.004,.610,1.225,1.972],z=zs.reduce((a,z)=>Math.abs(z-center.z)<Math.abs(a-center.z)?z:a),y=z===-1.918?.574:z===1.972?.592:oldY>.44?.79:.332,key=(center.x>0?'R':'L')+z;
-    if(!wheels.has(key)){const pivot=new THREE.Group();pivot.position.set(center.x,y,z);pivot.name='tankRollingWheel';scene.add(pivot);wheels.set(key,{pivot,side:center.x<0?'right':'left',radius:oldY>.44?.14:z===-1.918||z===1.972?.43:.30,axis:'x',axisSign:-1});}parent=wheels.get(key).pivot;
+   if(Math.abs(center.x)>.74&&b.max.y<.98&&sz.z<.92&&sz.y<.95){const candidates=[...[-1.109,-.458,.265,1.13].map(z=>({z,y:.79,r:.14})),...[-1.232,-.618,-.004,.610,1.225].map(z=>({z,y:.332,r:.30})),{z:-1.918,y:.574,r:.43},{z:1.972,y:.592,r:.43}],wheel=candidates.reduce((a,w)=>Math.hypot(w.z-center.z,w.y-center.y)<Math.hypot(a.z-center.z,a.y-center.y)?w:a),{z,y,r}=wheel,key=(center.x>0?'R':'L')+z;let radial=0;const positions=geo.attributes.position;for(const i of part.indices)radial=Math.max(radial,Math.hypot(positions.getY(i)-y,positions.getZ(i)-z));
+    // Suspension and end-wheel pieces must never orbit a nearby return roller.
+    if(radial<=r+.055){if(!wheels.has(key)){const pivot=new THREE.Group();pivot.position.set(center.x,y,z);pivot.name='tankRollingWheel';scene.add(pivot);wheels.set(key,{pivot,side:center.x<0?'right':'left',radius:r,axis:'x',axisSign:-1});}parent=wheels.get(key).pivot;}
    }
    if(parent===scene){body.push(...part.indices);continue;}
    collect(parent,geometry(geo,part.indices),mesh.material);

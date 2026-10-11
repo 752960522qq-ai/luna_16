@@ -50,3 +50,6 @@ const {updatePolyline}=await import('../app/src/main/assets/render-lines.js');co
 for(let i=0;i<120;i++)updatePolyline(line,points,true);assert.equal(line.geometry,geom);assert.equal(geom.drawRange.count,2);
 updatePolyline(line,Array.from({length:33},(_,i)=>({x:i,y:0,z:0})),true);assert.notEqual(line.geometry,geom);assert.equal(line.geometry.drawRange.count,33);
 console.log('PASS 2.5x optics, muzzle alignment, automatic fallback, own-hull masking, stable zone/line buffers and cached chase fitting');
+
+for(const w of tank.wheels)w.pivot.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Math.hypot(p.getY(i),p.getZ(i))<=w.radius+.056,'B tank wheel geometry must stay within its own wheel radius');});
+console.log('PASS B tank wheel pivots keep every attached vertex within the correct wheel radius');
