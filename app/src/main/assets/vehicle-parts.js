@@ -9,6 +9,9 @@ export function components(mesh){
  const cs=new Map();for(let i=0;i<pos.count;i++){const k=find(i);if(!cs.has(k))cs.set(k,{box:new THREE.Box3(),indices:[]});cs.get(k).box.expandByPoint(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));}
  for(let i=0;i<ix.count;i++)cs.get(find(ix.getX(i))).indices.push(ix.getX(i));return [...cs.values()];
 }
+// Decode normalized integer attributes before applying model-space transforms.
+// Writing metre coordinates back into quantized Int16 positions corrupts the mesh.
+function floatGeometry(geo){return geometry(geo,geo.index?Array.from(geo.index.array):Array.from({length:geo.attributes.position.count},(_,i)=>i));}
 function geometry(geo,indices,center=new THREE.Vector3()){
  const ids=[...new Set(indices)],map=new Map(ids.map((id,i)=>[id,i])),out=new THREE.BufferGeometry();
  for(const[name,a]of Object.entries(geo.attributes)){const v=new Float32Array(ids.length*a.itemSize);for(let i=0;i<ids.length;i++)for(let k=0;k<a.itemSize;k++)v[i*a.itemSize+k]=a.getComponent(ids[i],k)-(name==='position'?center.getComponent(k):0);out.setAttribute(name,new THREE.BufferAttribute(v,a.itemSize));}
@@ -66,7 +69,7 @@ function makeBelt(scene,entries){
 }
 export function animateBelts(scene,groups){
  scene.updateMatrixWorld(true);const inverse=scene.matrixWorld.clone().invert(),belts=[];
- for(const group of groups){if(!group)throw Error('Track group missing');const entries=[];group.traverse(mesh=>{if(!mesh.isMesh)return;const geo=mesh.geometry.clone().applyMatrix4(inverse.clone().multiply(mesh.matrixWorld));geo.computeBoundingBox();entries.push({geo,center:geo.boundingBox.getCenter(new THREE.Vector3()),material:mesh.material});mesh.visible=false;});belts.push(...makeBelt(scene,entries));}
+ for(const group of groups){if(!group)throw Error('Track group missing');const entries=[];group.traverse(mesh=>{if(!mesh.isMesh)return;const geo=floatGeometry(mesh.geometry).applyMatrix4(inverse.clone().multiply(mesh.matrixWorld));geo.computeBoundingBox();entries.push({geo,center:geo.boundingBox.getCenter(new THREE.Vector3()),material:mesh.material});mesh.visible=false;});belts.push(...makeBelt(scene,entries));}
  return {belts};
 }
 export function rollBelts(tracks,travel){
@@ -78,7 +81,7 @@ export function articulateKFZ(scene){
  // Each original rigid link shares a phase across its material pieces. No CPU vertex deformation.
  scene.updateMatrixWorld(true);const belts=[];
  for(const name of ['L_Track_GP','R_Track_GP']){const group=scene.getObjectByName(name),entries=[];
-  for(const link of group.children){const meshes=[];link.traverse(o=>{if(o.isMesh)meshes.push(o);});const bounds=new THREE.Box3();const parts=meshes.map(mesh=>{const geo=mesh.geometry.clone().applyMatrix4(inverse.clone().multiply(mesh.matrixWorld));geo.computeBoundingBox();bounds.union(geo.boundingBox);return {geo,material:mesh.material};});const center=bounds.getCenter(new THREE.Vector3());for(const part of parts)entries.push({...part,center});}
+  for(const link of group.children){const meshes=[];link.traverse(o=>{if(o.isMesh)meshes.push(o);});const bounds=new THREE.Box3();const parts=meshes.map(mesh=>{const geo=floatGeometry(mesh.geometry).applyMatrix4(inverse.clone().multiply(mesh.matrixWorld));geo.computeBoundingBox();bounds.union(geo.boundingBox);return {geo,material:mesh.material};});const center=bounds.getCenter(new THREE.Vector3());for(const part of parts)entries.push({...part,center});}
   group.visible=false;const bs=gpuRigidBelts(scene,entries);for(const b of bs)b.travelSign=-1;belts.push(...bs);
  }
  return {wheels,tracks:{belts}};
@@ -90,7 +93,7 @@ export function articulateTank(raw){
  const scene=new THREE.Group(),meshes=[];raw.traverse(o=>{if(o.isMesh)meshes.push(o);});
  const turret=new THREE.Group();turret.position.set(.16,1.43,.35);turret.name='tankTurret';scene.add(turret);const barrel=new THREE.Group();barrel.position.set(-.02,.22,.68);barrel.name='tankBarrel';turret.add(barrel);scene.updateMatrixWorld(true);
  const wheels=new Map(),trackSources=[],batches=new Map();const collect=(parent,geo,material)=>{if(!batches.has(parent))batches.set(parent,[]);batches.get(parent).push({geo,material});};
- for(const original of meshes){const geo=original.geometry.clone().applyMatrix4(transform.clone().multiply(original.matrixWorld)),mesh=new THREE.Mesh(geo,original.material),body=[];
+ for(const original of meshes){const geo=floatGeometry(original.geometry).applyMatrix4(transform.clone().multiply(original.matrixWorld)),mesh=new THREE.Mesh(geo,original.material),body=[];
   for(const part of components(mesh)){const b=part.box,center=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());let parent=scene;
    const oldY=center.y/(2.02/(2797.44873046875-bb.min.y))* (2.02/size.y);
    if(['Object_17','Object_18','Object_19','Object_20'].includes(original.name)){trackSources.push({geo,ids:part.indices,center,material:mesh.material});continue;}
@@ -113,11 +116,11 @@ export function articulateTank(raw){
 function gpuRigidBelts(scene,entries){
  const bounds=new THREE.Box3();for(const e of entries){e.geo.computeBoundingBox();bounds.union(e.geo.boundingBox);}const cy=(bounds.min.y+bounds.max.y)/2,r=(bounds.max.y-bounds.min.y)/2,z0=bounds.min.z+r,z1=bounds.max.z-r,L=z1-z0,{path,per}=beltPath(z0,z1,cy,r),batches=new Map(),step=per/100;
  for(const e of entries){const {y,z}=e.center,s=z>=z0&&z<=z1?(y<cy?z-z0:L+Math.PI*r+z1-z):z>z1?L+r*Math.atan2(z-z1,cy-y):2*L+Math.PI*r+r*Math.atan2(z0-z,y-cy),phase=s,q=path(phase),a=new Float32Array(e.geo.attributes.position.count*4);for(let i=0;i<e.geo.attributes.position.count;i++)a.set([phase,e.center.y,e.center.z,q.a],i*4);e.geo.setAttribute('treadPhase',new THREE.BufferAttribute(a,4));if(!batches.has(e.material))batches.set(e.material,[]);batches.get(e.material).push(e.geo);}
- const supportLinks=entries.map(e=>{const b=e.geo.boundingBox,rest=path(e.geo.attributes.treadPhase.getX(0));return {restY:rest.y,restA:rest.a,phase:e.geo.attributes.treadPhase.getX(0),y:e.center.y,z:e.center.z,halfY:Math.max(Math.abs(b.min.y-e.center.y),Math.abs(b.max.y-e.center.y)),halfZ:Math.max(Math.abs(b.min.z-e.center.z),Math.abs(b.max.z-e.center.z))};});
- const supportPoint={};const supportAt=travel=>{let low=Infinity;for(const e of supportLinks){const q=path(e.phase-travel,supportPoint),a=q.a-e.restA;low=Math.min(low,e.y+q.y-e.restY-Math.abs(Math.cos(a))*e.halfY-Math.abs(Math.sin(a))*e.halfZ);}return low;};
+ const supportLinks=entries.map(e=>{const b=e.geo.boundingBox,rest=path(e.geo.attributes.treadPhase.getX(0));return {restY:rest.y,restZ:rest.z,restA:rest.a,phase:e.geo.attributes.treadPhase.getX(0),y:e.center.y,z:e.center.z,halfY:Math.max(Math.abs(b.min.y-e.center.y),Math.abs(b.max.y-e.center.y)),halfZ:Math.max(Math.abs(b.min.z-e.center.z),Math.abs(b.max.z-e.center.z))};});
+ const supportPoint={};const supportAt=travel=>{let low=Infinity;for(const e of supportLinks){const q=path(e.phase-travel,supportPoint),a=q.a-e.restA;low=Math.min(low,q.y+Math.cos(a)*(e.y-e.restY)-Math.sin(a)*(e.z-e.restZ)-Math.abs(Math.cos(a))*e.halfY-Math.abs(Math.sin(a))*e.halfZ);}return low;};
  const belts=[];for(const [source,geos]of batches){const material=source.clone(),uniform={value:0};material.onBeforeCompile=shader=>{shader.uniforms.treadTravel=uniform;shader.vertexShader=`attribute vec4 treadPhase; uniform float treadTravel;
 vec3 treadPoint(float s){s=mod(mod(s,${per.toFixed(8)})+${per.toFixed(8)},${per.toFixed(8)});float L=${L.toFixed(8)},r=${r.toFixed(8)},cy=${cy.toFixed(8)},z0=${z0.toFixed(8)},z1=${z1.toFixed(8)};if(s<L)return vec3(cy-r,z0+s,0.);if(s<L+3.14159265*r){float a=(s-L)/r;return vec3(cy-r*cos(a),z1+r*sin(a),-a);}if(s<2.*L+3.14159265*r)return vec3(cy+r,z1-(s-L-3.14159265*r),-3.14159265);float a=(s-2.*L-3.14159265*r)/r;return vec3(cy+r*cos(a),z0-r*sin(a),-3.14159265-a);}
-`+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvec3 tq=treadPoint(treadPhase.x-treadTravel);float ta=tq.z-treadPhase.w;mat2 tr=mat2(cos(ta),sin(ta),-sin(ta),cos(ta));objectNormal.yz=tr*objectNormal.yz;').replace('#include <begin_vertex>','#include <begin_vertex>\nvec3 tRest=treadPoint(treadPhase.x);transformed.yz=treadPhase.yz+(tq.xy-tRest.xy)+tr*(position.yz-treadPhase.yz);');};material.customProgramCacheKey=()=>`rigid-belt:${z0}:${z1}:${cy}:${r}`;const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,material);mesh.name='gpuOriginalTreads';mesh.frustumCulled=false;scene.add(mesh);belts.push({mesh,uniform,side:bounds.getCenter(new THREE.Vector3()).x<0?'left':'right',gpu:true,supportAt,contactMin:bounds.min.y,contactBounds:bounds.clone()});for(const geo of geos)geo.dispose();}return belts;
+`+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvec3 tq=treadPoint(treadPhase.x-treadTravel);float ta=tq.z-treadPhase.w;mat2 tr=mat2(cos(ta),sin(ta),-sin(ta),cos(ta));objectNormal.yz=tr*objectNormal.yz;').replace('#include <begin_vertex>','#include <begin_vertex>\nvec3 tRest=treadPoint(treadPhase.x);transformed.yz=tq.xy+tr*(position.yz-tRest.xy);');};material.customProgramCacheKey=()=>`rigid-belt:${z0}:${z1}:${cy}:${r}`;const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,material);mesh.name='gpuOriginalTreads';mesh.frustumCulled=false;scene.add(mesh);belts.push({mesh,uniform,side:bounds.getCenter(new THREE.Vector3()).x<0?'left':'right',gpu:true,supportAt,contactMin:bounds.min.y,contactBounds:bounds.clone()});for(const geo of geos)geo.dispose();}return belts;
 }
 function surfaceBelt(scene,geo,source){
  geo.computeBoundingBox();const bounds=geo.boundingBox,side=bounds.getCenter(new THREE.Vector3()).x<0?'left':'right',material=source.clone(),uniform={value:0};
