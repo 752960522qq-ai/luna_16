@@ -50,3 +50,8 @@
 .zone-status{position:absolute;top:82px;left:50%;transform:translateX(-50%);padding:7px 14px;background:#17251ee0;color:#d8e5da;border:1px solid #83ad8c;border-radius:8px;font-size:13px;pointer-events:none}.zone-status.danger{color:#ffcead;background:#502b2be8}
 
 .battle.in-gas:before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse,transparent 35%,#538c4670);pointer-events:none}.menu-bottom .map-select{margin:3px 0}
+/* Gunner optics: circle mask and centre marks stay clear of touch controls. */
+.gun-sight-overlay{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at center,transparent 0,transparent min(42vw,29vh),#050806ed calc(min(42vw,29vh) + 2px))}
+.gun-sight-lens{position:absolute;left:50%;top:50%;width:min(84vw,58vh);height:min(84vw,58vh);transform:translate(-50%,-50%);border:2px solid #91a59999;border-radius:50%;overflow:hidden}
+.gun-sight-lens i,.gun-sight-lens b{position:absolute;display:block;background:#142018bb}.gun-sight-lens i{left:50%;top:0;width:1px;height:100%}.gun-sight-lens b{left:0;top:50%;height:1px;width:100%}.gun-sight-lens span{position:absolute;left:53%;top:60%;font:12px monospace;color:#bdd4b9}
+.gun-sight-active #enemyDots,.gun-sight-active .camera-badge{visibility:hidden}
