@@ -9,7 +9,7 @@ const previous=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/previous
  const{browser,server,url}=await open({assets:path.join(assets,'blindfire'),basePath:'/games/blindfire/0.9/'}),page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),errors=[],requests=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
  try{
-  await page.goto(url);await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady);
+  await page.goto(url);await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady);assert.equal(await page.evaluate(()=>GameDebug.profile.coins),0);assert.deepEqual(await page.evaluate(()=>GameDebug.profile.owned),['handlv_missile']);
   await page.evaluate(p=>localStorage.setItem('bf-profile-v1',JSON.stringify(p)),previous);await page.reload();await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady);
   let state=await page.evaluate(()=>({coins:GameDebug.profile.coins,owned:GameDebug.profile.owned,selected:GameDebug.profile.selected,claimed:GameDebug.profile.claimed,tutorial:GameDebug.profile.tutorialDone,infinite:GameDebug.profile.infiniteCoins}));
   assert.equal(state.coins,previous.coins);assert.deepEqual(state.owned,previous.owned);assert.equal(state.selected,previous.selected);assert.deepEqual(state.claimed,previous.claimed);assert.equal(state.tutorial,true);assert.equal(state.infinite,false);
@@ -22,7 +22,7 @@ const previous=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/previous
    await page.locator('#startAI').scrollIntoViewIfNeeded();const b=await page.locator('#startAI').boundingBox();assert.ok(b.y>=0&&b.y+b.height<=height);
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#startAI').click();await page.waitForFunction(()=>GameDebug.view?.started);
-  for(const id of ['joystick','fireButton','pauseButton']){const b=await page.locator('#'+id).boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=390&&b.y+b.height<=844,id);}
+  for(const [width,height] of [[320,568],[360,500],[360,640],[390,844],[430,932],[768,1024]]){await page.setViewportSize({width,height});await page.waitForTimeout(100);for(const id of ['joystick','fireButton','pauseButton']){const b=await page.locator('#'+id).boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=width&&b.y+b.height<=height,id+' '+width+'x'+height);}}
   await page.setViewportSize({width:844,height:390});await page.waitForTimeout(100);assert.equal(await page.locator('#portraitHint').isVisible(),true);const t=await page.evaluate(()=>GameDebug.engine.t);await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>GameDebug.engine.t),t);
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);assert.equal(await page.locator('#portraitHint').isVisible(),false);await page.locator('#resume').click();await page.waitForTimeout(150);assert.ok(await page.evaluate(t=>GameDebug.engine.t>t,t));
   fs.mkdirSync('test-output/h5',{recursive:true});await page.screenshot({path:'test-output/h5/portrait-b-tank.png'});

@@ -67,3 +67,5 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 #portraitHint b{font-size:24px}#portraitHint span{font-size:14px}
 .h5-landscape #portraitHint{display:grid}
 @media(max-height:600px){.h5-portrait .brand{margin-top:14px;margin-bottom:18px}.h5-portrait .brand h1{font-size:40px}.h5-portrait .brand p{margin-top:8px}.h5-portrait .edition-tag{margin-top:8px}}
+
+.h5-portrait .health,.h5-portrait .intel-panel,.h5-portrait .mini-wrap,.h5-portrait .camera-badge,.h5-portrait .ballistic-panel{margin-top:env(safe-area-inset-top)}
