@@ -53,3 +53,7 @@ console.log('PASS 2.5x optics, muzzle alignment, automatic fallback, own-hull ma
 
 for(const w of tank.wheels)w.pivot.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Math.hypot(p.getY(i),p.getZ(i))<=w.radius+.056,'B tank wheel geometry must stay within its own wheel radius');});
 console.log('PASS B tank wheel pivots keep every attached vertex within the correct wheel radius');
+
+assert.equal(tank.source,'Grey Panzer II Ausf. F');assert.equal(tank.wheels.length,22);assert.equal(tank.tracks.belts.length,2);
+const materials=new Set();tank.node.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m.name);});assert.ok(![...materials].some(n=>/sand|sahara|desert|hot/i.test(n)),'only grey model materials may remain');assert.equal(tank.barrel.children.length>0,true);assert.ok(tank.tracks.belts.every(b=>b.mesh.geometry.attributes.treadPhase.count>1000),'continuous tracks need sufficient tessellation around end wheels');
+console.log('PASS extracted grey-only Panzer II F, 22 named wheel pivots, two dense animated tracks and complete turret/barrel');

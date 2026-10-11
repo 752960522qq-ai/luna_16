@@ -34,6 +34,7 @@ const {open}=require('./browser-helpers.cjs');
     const renderCanvas=document.createElement('canvas'),renderer=new T.WebGLRenderer({canvas:renderCanvas,antialias:true,preserveDrawingBuffer:true});renderer.setSize(1100,720);renderer.outputColorSpace=T.SRGBColorSpace;const camera=new T.PerspectiveCamera(38,1100/720,.1,250);
     const engine=new B.Engine({mode:'lan',mapId:'city',countdown:0,vehicles:[id]}),p=engine.players[0];Object.assign(p,{x:1000,z:1500,y:B.terrain(1000,1500),yaw:0});for(const a of Object.values(p.aim)){a.yaw=0;a.pitch=0;}r.landscapeMap='city';ground.position.set(p.x,p.y,p.z);
     for(const [pose,left,right] of [['rest',0,0],['forward',1.7,1.7],['reverse',-2.6,-2.6],['turn_left',-1.3,1.3],['turn_right',2.8,-2.8]]){p.trackTravel={left,right};p.wheelTravel=(left+right)/2;r.updateTruck(group,p,p.selected,0);camera.position.set(p.x+7.7,p.y+3.1,p.z+5.2);camera.lookAt(p.x,p.y+1.0,p.z);renderer.render(scene,camera);images.push({name:id+'_'+pose+'.png',image:renderCanvas.toDataURL('image/png')});}
+    if(id==='b_tank'){for(const [pose,yaw,pitch]of [['turret_up',.75,B.VEHICLES[id].maxPitch],['turret_down',-.75,B.VEHICLES[id].minPitch]]){p.aim.autocannon={yaw,pitch};p.trackTravel={left:0,right:0};r.updateTruck(group,p,'autocannon',0);renderer.render(scene,camera);images.push({name:id+'_'+pose+'.png',image:renderCanvas.toDataURL('image/png')});}}
     renderer.dispose();
    }
    return {reports,images};
