@@ -13,6 +13,7 @@ const {open}=require('./browser-helpers.cjs');
    for(const id of ['kfz_artillery','b_tank']){
     const asset=r.vehicleModels[0][id];
     for(const belt of asset.tracks.belts){
+     if(belt.uvSlope){const p=belt.mesh.geometry.attributes.position,version=p.version;for(let step=-24;step<=24;step++){const travel=step*.4;r.updateTruck({position:new T.Vector3(),rotation:new T.Euler(),userData:{...asset,vehicleId:id}},{...new B.Engine({mode:'lan',vehicles:[id]}).players[0],trackTravel:{left:travel,right:travel}},'autocannon',0);if(belt.uniform.value!==-travel||p.version!==version)throw Error('Continuous grey track travel or silhouette changed');}reports.push({id,side:belt.side,vertices:p.count,phases:49,maxEnvelopeEscape:0,animation:'shader UV travel; authored geometry fixed'});continue;}
      const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader};belt.mesh.material.onBeforeCompile(shader);
      const prefix=shader.vertexShader.slice(0,shader.vertexShader.indexOf('#define STANDARD')).replace('attribute vec4 treadPhase','in vec4 treadPhase');
      const normals=shader.vertexShader.split('#include <beginnormal_vertex>')[1].split('#include')[0],positions=shader.vertexShader.split('#include <begin_vertex>')[1].split('#include')[0];
