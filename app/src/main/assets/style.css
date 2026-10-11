@@ -55,3 +55,15 @@
 .gun-sight-lens{position:absolute;left:50%;top:50%;width:min(84vw,58vh);height:min(84vw,58vh);transform:translate(-50%,-50%);border:2px solid #91a59999;border-radius:50%;overflow:hidden}
 .gun-sight-lens i,.gun-sight-lens b{position:absolute;display:block;background:#142018bb}.gun-sight-lens i{left:50%;top:0;width:1px;height:100%}.gun-sight-lens b{left:0;top:50%;height:1px;width:100%}.gun-sight-lens span{position:absolute;left:53%;top:60%;font:12px monospace;color:#bdd4b9}
 .gun-sight-active #enemyDots,.gun-sight-active .camera-badge{visibility:hidden}
+
+/* TapTap H5: dynamic visual viewport, scrollable small-screen menu and portrait fallback. */
+body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
+.h5-portrait .menu{overflow-y:auto;touch-action:pan-y;min-height:0;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom))}
+.h5-portrait .menu-top,.h5-portrait .brand,.h5-portrait .menu-bottom{flex-shrink:0}
+.h5-portrait .modal-card{max-height:calc(var(--h5-height,100dvh) - 44px)}
+.h5-portrait .controls{bottom:max(12px,env(safe-area-inset-bottom))}
+.h5-portrait .battle-header{top:calc(13px + env(safe-area-inset-top))}
+#portraitHint{display:none;position:fixed;inset:0;z-index:100;background:#142720;color:#eef0da;align-content:center;justify-items:center;gap:16px;text-align:center;padding:24px;touch-action:none}
+#portraitHint b{font-size:24px}#portraitHint span{font-size:14px}
+.h5-landscape #portraitHint{display:grid}
+@media(max-height:600px){.h5-portrait .brand{margin-top:14px;margin-bottom:18px}.h5-portrait .brand h1{font-size:40px}.h5-portrait .brand p{margin-top:8px}.h5-portrait .edition-tag{margin-top:8px}}

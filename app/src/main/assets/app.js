@@ -1,3 +1,4 @@
+import {setupH5Viewport} from './h5-viewport.js';
 import {canUseGunSight,GUN_SIGHT_ZOOM} from './gun-sight.js';
 import { Renderer } from './render.js';
 import { GameAudio } from './audio.js';
@@ -261,6 +262,7 @@ function frame(now){const elapsed=Math.min(.1,(now-lastFrame)/1000);lastFrame=no
  if(netRole==='guest'&&connected&&now-lastPeerAt>12000){disconnect(false);interrupted('对方长时间未响应，请重新连接。');}
  requestAnimationFrame(frame);
 }
+if(EDITION==='h5')setupH5Viewport(()=>renderer.resize(),landscape=>{if(landscape){resetInput();stopFire();if(screen==='battle')showPause();}});
 soundUI();if(!profile.tutorialDone&&!isTest)startTutorial();requestAnimationFrame(frame);
 if(isTest)window.GameDebug={openRemote,onlineJoin,start:startAI,startTutorial,get tutorial(){return tutorial;},get profile(){return profile;},get engine(){return engine;},get view(){return view;},get renderer(){return renderer;},get audio(){return audio;},get selected(){return selected;},get netRole(){return netRole;},get transport(){return transport;},get remote(){return remote;},dispatch,select,fire,stopFire,updateHUD,pause:showPause,returnMenu,control};
 

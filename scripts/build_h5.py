@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a TapTap H5 ZIP with one root folder containing index.html."""
 import argparse
+import json
 import shutil
 import zipfile
 from pathlib import Path
@@ -10,6 +11,9 @@ parser.add_argument('--output', required=True, help='TapTap H5 upload ZIP')
 parser.add_argument('--directory', help='Keep unpacked files here for local preview')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
+compat = json.loads((root / 'scripts' / 'h5-compatibility.json').read_text())
+assert compat['storage_key'] == 'bf-profile-v1' and compat['root_folder'] == 'blindfire'
+assert "KEY='bf-profile-v1'" in (root / 'app/src/main/assets/progress.js').read_text()
 stage = Path(args.directory).resolve() if args.directory else root / 'build' / 'h5'
 if stage.exists():
     shutil.rmtree(stage)
@@ -20,10 +24,12 @@ text = index.read_text(encoding='utf-8')
 text = text.replace('单人战术训练与安卓同网对战。', '竖屏3D战术训练：手动驾驶、火炮弹道、无人机侦察与困难AI。')
 text = text.replace('id="openLAN" class="lan-button"', 'id="openLAN" class="lan-button hidden"')
 text = text.replace('第三人称战术对战', '第三人称战术训练')
+text = text.replace('</head>', '<meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><link rel="manifest" href="manifest.webmanifest"></head>')
 index.write_text(text, encoding='utf-8')
+(stage / 'manifest.webmanifest').write_text(json.dumps({'name':'飞棍来咯','short_name':'飞棍来咯','start_url':'./index.html','scope':'./','display':'fullscreen','orientation':'portrait','background_color':'#142720','theme_color':'#142720'}, ensure_ascii=False), encoding='utf-8')
 output = Path(args.output).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
-package_root = 'blindfire'
+package_root = compat['root_folder']
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     folder = zipfile.ZipInfo(f'{package_root}/', date_time=(2026, 10, 3, 0, 0, 0))
     folder.external_attr = (0o40755 << 16) | 0x10

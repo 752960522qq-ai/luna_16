@@ -147,7 +147,7 @@ export class Renderer{
     for(let j=0;j<points.length-1;j++){const[a,b]=[points[j],points[j+1]],len=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])/len,nz=(b[0]-a[0])/len;for(let i=0;i<len;i+=12){const s=i/len,t=Math.min(1,(i+12)/len),q=(f,o)=>{const x=a[0]+(b[0]-a[0])*f+nx*o,z=a[1]+(b[1]-a[1])*f+nz*o;return[x,B.terrain(x,z)+.13,z];};vertices.push(...q(s,-width),...q(t,-width),...q(s,width),...q(t,-width),...q(t,width),...q(s,width));if(i%36<12)marks.push(...q(s,-.24),...q(t,-.24),...q(s,.24),...q(t,-.24),...q(t,.24),...q(s,.24));}}
     for(const[v,color]of[[vertices,'#5c625a'],[marks,'#bfc2aa']]){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.computeVertexNormals();this.landscape.add(new THREE.Mesh(g,mat(color,{side:THREE.DoubleSide})));}
   }
-  resize(){if(!this.ready)return;this.gl.setSize(innerWidth,innerHeight,false);this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
+  resize(){if(!this.ready)return;const width=this.canvas.clientWidth||innerWidth,height=this.canvas.clientHeight||innerHeight;this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.mini.width=228;this.mini.height=228;}
   orient(g,s){g.position.set(s.x,s.y,s.z);g.rotation.set(s.pitch,-s.yaw,0,'YXZ');}
   updateTruck(g,p,selected,t){g.position.set(p.x,p.y,p.z);g.rotation.y=-p.yaw;
     applyGroundContact(g,p,B.terrain,this.landscapeMap);

@@ -1,0 +1,13 @@
+{
+  "root_folder": "blindfire",
+  "entry": "index.html",
+  "storage_key": "bf-profile-v1",
+  "read_versions": [
+    1,
+    2
+  ],
+  "orientation": "portrait",
+  "edition": "h5",
+  "signing": "none-web-zip",
+  "hosting": "Update the existing TapTap game and retain its storage origin. Never rename the save key or clear storage on startup."
+}

@@ -69,6 +69,16 @@ jobs:
           retention-days: 30
       - name: Build TapTap H5 upload package
         run: python3 scripts/build_h5.py --output build/blindfire-v0.9-taptap-h5.zip
+      - name: Validate TapTap H5 and legacy saves
+        run: |
+          export CHROMIUM_EXECUTABLE="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROMIUM_EXECUTABLE" ]; then unset CHROMIUM_EXECUTABLE; fi
+          SOFTWARE_GL=1 node tests/h5-package.test.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blindfire-h5-render-validation
+          path: test-output/h5/
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
           name: blindfire-v0.9-taptap-h5
