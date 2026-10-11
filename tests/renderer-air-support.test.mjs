@@ -18,3 +18,34 @@ console.log('PASS optimized draw count and immutable GPU tread buffers, tier2 tu
 // All seven discovered FFA opponents have independent wheels, guns, and GPU uniforms.
 const ffa=new B.Engine({mode:'lan',battleMode:'dark_forest',mapId:'city',countdown:0,vehicles:Array(8).fill('kfz_artillery')});for(const p of ffa.players)Object.assign(p,{x:1000,z:1000+p.id*12,y:2});ffa.updateIntel();r.draw(ffa.snapshot(0),0);assert.equal([...r.enemyFleet.values()].filter(g=>g.visible).length,7);const a=r.vehicleModels[2].kfz_artillery,b=r.vehicleModels[3].kfz_artillery;assert.notEqual(a.node,b.node);assert.notEqual(a.wheels[0].pivot,b.wheels[0].pivot);assert.notEqual(a.tracks.belts[0].uniform,b.tracks.belts[0].uniform);r.updateTruck(r.enemyFleet.get(2),{...ffa.players[2],trackTravel:{left:1,right:2}},'artillery',1);assert.equal(a.tracks.belts[0].uniform.value,a.tracks.belts[0].side==='left'?-1:-2);assert.ok(b.tracks.belts[0].uniform.value===0);assert.equal(a.wheels[0].pivot.rotation.x<0,true);const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader};a.tracks.belts[0].mesh.material.onBeforeCompile(shader);assert.equal(shader.uniforms.treadTravel,a.tracks.belts[0].uniform);
 console.log('PASS seven independently articulated discovered opponents and correct KFZ ground-contact track direction');
+// Ground contact follows the complete footprint and the animated rigid-link envelope.
+for(const id of ['b_tank','kfz_artillery','hero_tank','black_turtle']){
+ const asset=r.vehicleModels[0][id],e=new B.Engine({mode:'lan',mapId:'hills',vehicles:[id]}),p=e.players[0];
+ for(const belt of asset.tracks.belts)if(belt.uvSlope){assert.ok(Math.hypot(belt.uvSlope.u,belt.uvSlope.v)>1e-5,`${id}: UV travel must be measurable`);console.log(id,'tread UV metres',belt.uvSlope);}
+ for(const yaw of [0,.8,2.2])for(const travel of [-3,0,3,10]){
+ Object.assign(p,{x:1111,z:1234,y:B.terrain(1111,1234),yaw,trackTravel:{left:travel,right:travel*.8}});
+ const g={position:new T.Vector3(),rotation:new T.Euler(),userData:{...asset,vehicleId:id}};r.updateTruck(g,p,p.selected,0);
+ const contact=asset.groundContact,c=Math.cos(yaw),s=Math.sin(yaw);let low=contact.minY;
+ for(const belt of asset.tracks.belts)if(belt.supportAt)low=Math.min(low,contact.minY+(belt.supportAt(p.trackTravel[belt.side]*(belt.travelSign||1))-belt.contactMin)*asset.node.scale.y);
+ for(const x of [-contact.halfWidth,0,contact.halfWidth])for(const z of [contact.front,(contact.front+contact.rear)/2,contact.rear]){const point=new T.Vector3(x,low,z).applyEuler(g.rotation).add(g.position);assert.ok(point.y>=B.terrain(point.x,point.z)+.149,`${id}: tread penetrates terrain`);}
+ }
+}
+console.log('PASS four tracked vehicles calibrated UV travel and terrain support for forward/reverse, steering and animated links');
+// Zoom is optical and aligned with the actual muzzle/fire direction.
+const {canUseGunSight,GUN_SIGHT_ZOOM,GUN_SIGHT_FOV}=await import('../app/src/main/assets/gun-sight.js');
+assert.ok(Math.abs(Math.tan(62*Math.PI/360)/Math.tan(GUN_SIGHT_FOV*Math.PI/360)-GUN_SIGHT_ZOOM)<1e-12);
+for(const id of ['b_tank','hero_tank']){
+ const e=new B.Engine({mode:'lan',mapId:'city',vehicles:[id]}),p=e.players[0],gun=id==='hero_tank'?'tankCannon':'autocannon';p.selected=gun;p.aim[gun]={yaw:.4,pitch:.15};
+ assert.ok(canUseGunSight(p));r.gunSight=true;r.cameraKey=null;let hidden=false;const draw=r.gl.render;r.gl.render=()=>{hidden=!r.ownTruck.visible;};r.draw(e.snapshot(0),100);r.gl.render=draw;
+ assert.ok(hidden&&r.ownTruck.visible,'hide own hull only while drawing optics');assert.equal(r.camera.fov,GUN_SIGHT_FOV);
+ const m=B.muzzle(p,gun),d=B.direction(.4,.15),q=new T.Vector3(m.x+d.x*100,m.y+d.y*100,m.z+d.z*100).project(r.camera);assert.ok(Math.abs(q.x)<1e-8&&Math.abs(q.y)<1e-8,'crosshair follows weapon direction');
+ p.selected='observation';assert.equal(canUseGunSight(p),false);r.draw(e.snapshot(0),101);assert.equal(r.camera.fov,62);r.gunSight=false;
+}
+// Unchanged overlays reuse geometry; straight driving reuses silhouette fitting.
+const perf=new B.Engine({mode:'lan',battleMode:'dark_forest',mapId:'city',countdown:0,vehicles:Array(8).fill('b_tank')}),v=perf.snapshot(0);r.cameraKey=null;r.draw(v,200);const zoneGeometry=r.zoneRing.geometry,zoneVersion=zoneGeometry.attributes.position.version,refits=r.chaseFraming.refits;
+for(let i=0;i<60;i++)r.draw(v,200+i/60);
+assert.equal(r.zoneRing.geometry,zoneGeometry);assert.equal(zoneGeometry.attributes.position.version,zoneVersion);assert.equal(r.chaseFraming.refits,refits);
+const {updatePolyline}=await import('../app/src/main/assets/render-lines.js');const line=new T.Line(new T.BufferGeometry(),new T.LineDashedMaterial()),points=[{x:0,y:0,z:0},{x:0,y:3,z:4}];updatePolyline(line,points,true);const geom=line.geometry;assert.equal(geom.attributes.lineDistance.getX(1),5);
+for(let i=0;i<120;i++)updatePolyline(line,points,true);assert.equal(line.geometry,geom);assert.equal(geom.drawRange.count,2);
+updatePolyline(line,Array.from({length:33},(_,i)=>({x:i,y:0,z:0})),true);assert.notEqual(line.geometry,geom);assert.equal(line.geometry.drawRange.count,33);
+console.log('PASS 2.5x optics, muzzle alignment, automatic fallback, own-hull masking, stable zone/line buffers and cached chase fitting');

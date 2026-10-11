@@ -1,8 +1,11 @@
+import {canUseGunSight,GUN_SIGHT_ZOOM} from './gun-sight.js';
 import { Renderer } from './render.js';
 import { GameAudio } from './audio.js';
 import { RemoteLink } from './online.js';
 import { REMOTE_ENABLED,EDITION } from './net-config.js';
-const $=id=>document.getElementById(id),{Engine,C,ballistic,clamp,terrain}=window.Blindfire;
+const elementCache=new Map();const $=id=>{if(!elementCache.has(id))elementCache.set(id,document.getElementById(id));return elementCache.get(id);},{Engine,C,clamp,terrain}=window.Blindfire;
+const weaponButtons=[...document.querySelectorAll('[data-weapon]')],weaponRow=document.querySelector('.weapon-row');
+const weaponParts=new Map(weaponButtons.map(b=>[b,{cooldown:b.querySelector('.cooldown'),label:b.querySelector('small')}]));
 const renderer=new Renderer($('world'),$('mini'));
 const native=window.Native||null,isTest=new URLSearchParams(location.search).has('test');
 const difficultyNames={easy:'新兵',standard:'标准',hard:'困难'};
@@ -14,7 +17,7 @@ const stick={x:0,y:0},keys=new Set(),mapPointers=new Map();let mapGesture=null;
 const names={uav:'无人机',missile:'巡航导弹',artillery:'火炮',sam:'防空导弹',mg:'高射机枪',reconPlane:'空中侦查',bomber:'空中支援'};
 const {VEHICLES,WEAPONS,DEFAULT_VEHICLE,vehicleSpec,weaponSpec}=window.Blindfire;
 let profileStorage=null;try{profileStorage=localStorage;}catch(_){}
-const profile=new window.BlindfireProgress.Progress(profileStorage,{fullUnlockTest:new URLSearchParams(location.search).get('fullUnlockTest')==='1'});
+const profile=new window.BlindfireProgress.Progress(profileStorage,{infiniteCoins:new URLSearchParams(location.search).get('infiniteCoins')==='1',fullUnlockTest:new URLSearchParams(location.search).get('fullUnlockTest')==='1'});
 let roundKey=null,roundReward=null,mapAim=false,battleMap='hills',tutorial=null,tutorialRendered=-1;
 function beginRewardRound(){roundKey=globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;roundReward=null;}
 function walletUI(){$('coinBalance').textContent=profile.coins.toLocaleString('zh-CN');}
@@ -31,7 +34,7 @@ function weaponRows(id,vehicleId){const w=weaponSpec({vehicleId},id),rows=[['装
  if(id==='autocannon')rows.push(['弹匣','10发'],['射击间隔','0.4秒'],['换弹','5秒']);
  if(id==='repair')rows.push(['使用次数','每局一次'],['维修时间','15秒，禁止移动和攻击'],['维修效果','恢复全部生命值']);
  if(id==='highExplosive')rows.push(['作用','下一发122mm炮弹变为高爆弹'],['爆炸中心伤害','95 HP'],['伤害衰减','随距离线性降低']);
- if(id==='tankCannon')rows.push(['作用','普通弹单体伤害90，装填高爆弹后中心伤害95']);
+ if(id==='tankCannon')rows.push(['作用','普通弹伤害90、爆炸半径5米，装填10秒；高爆弹中心伤害95']);
  if(id==='observation')rows.push(['扇形范围','前方90° / 500m'],['持续时间','8秒']);
  if(w.hp)rows.push(['空中耐久',`${w.hp} HP`]);
  if(w.recon)rows.push(['侦察距离',`${w.recon} m`]);
@@ -55,9 +58,9 @@ try{audio.enabled=localStorage.getItem('bf-sound')!=='off';}catch(_){}
 function soundUI(){document.querySelectorAll('.sound-button').forEach(b=>{b.classList.toggle('muted',!audio.enabled);b.setAttribute('aria-label',audio.enabled?'关闭声音':'开启声音');});}
 function vibrate(ms){try{if(native&&native.vibrate)native.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(_){} }
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');toastUntil=performance.now()+2300;}
-function showModal(kind,html,handlers={}){renderer.hidePreview();modalKind=kind;$('modalCard').innerHTML=html;$('modal').classList.remove('hidden');for(const[id,fn]of Object.entries(handlers)){const el=$(id);if(el)el.addEventListener('click',fn);}}
-function closeModal(){renderer.hidePreview();$('modal').classList.add('hidden');$('modalCard').innerHTML='';modalKind=null;}
-function setScreen(next){screen=next;$('menu').classList.toggle('hidden',next!=='menu');$('battle').classList.toggle('hidden',next!=='battle');renderer.resize();}
+function showModal(kind,html,handlers={}){elementCache.clear();renderer.hidePreview();modalKind=kind;$('modalCard').innerHTML=html;$('modal').classList.remove('hidden');for(const[id,fn]of Object.entries(handlers)){const el=$(id);if(el)el.addEventListener('click',fn);}}
+function closeModal(){elementCache.clear();renderer.hidePreview();$('modal').classList.add('hidden');$('modalCard').innerHTML='';modalKind=null;}
+function setScreen(next){if(next!=='battle')renderer.gunSight=false;screen=next;$('menu').classList.toggle('hidden',next!=='menu');$('battle').classList.toggle('hidden',next!=='battle');renderer.resize();}
 function sendNet(data){if(!connected)return;try{if(transport==='online'&&remote)remote.send(JSON.stringify(data));else if(native)native.send(JSON.stringify(data));}catch(_){}}
 function dispatch(action,silent=false){
  if(!view||view.over||paused&&!netRole)return {ok:false};
@@ -68,7 +71,7 @@ function dispatch(action,silent=false){
  else if(r.ok&&!silent){audio.init();if(!['fire','detonate'].includes(action.type))audio.play('click');if(action.type==='fire'||action.type==='detonate')vibrate(15);}
  return r;
 }
-function select(k){if(!Object.prototype.hasOwnProperty.call(C,k)||!view?.own.weapons.includes(k))return;stopFire();aimTarget=null;dispatch({type:'vehicle'},true);const r=dispatch({type:'select',weapon:k},true);if(!r.ok)return;selected=k;document.querySelectorAll('[data-weapon]').forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
+function select(k){if(!Object.prototype.hasOwnProperty.call(C,k)||!view?.own.weapons.includes(k))return;stopFire();aimTarget=null;dispatch({type:'vehicle'},true);const r=dispatch({type:'select',weapon:k},true);if(!r.ok)return;selected=k;if(!canUseGunSight(view.own))renderer.gunSight=false;weaponButtons.forEach(b=>b.classList.toggle('selected',b.dataset.weapon===k));updateHUD();}
 function startAI(seed){document.querySelectorAll('.tutorial-highlight').forEach(el=>el.classList.remove('tutorial-highlight'));tutorial=null;$('tutorialPanel').classList.add('hidden');disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'ai',battleMode,mapId:battleMap,difficulty,seed,vehicles:[profile.selected]});renderer.setMap(engine.mapId);beginRewardRound();view=engine.snapshot(0);mapAim=false;paused=false;lastLog=0;oldHp=view.own.maxHp;selected=view.own.selected;resetInput();renderer.cameraKey=null;lastFrame=performance.now();toastUntil=0;$('toast').classList.add('hidden');$('modeLabel').textContent=`${battleMode==='dark_forest'?'黑暗森林':'1v1 对决'} / ${view.roomTier}级房 / ${difficultyNames[difficulty]}`;setScreen('battle');select(selected);updateHUD();}
 function startTutorial(){
  disconnect(false);audio.init();audio.reset();closeModal();engine=new Engine({mode:'tutorial',seed:731,vehicles:[DEFAULT_VEHICLE,DEFAULT_VEHICLE],countdown:0});renderer.setMap('hills');tutorial=new window.BlindfireTutorial.Tutorial(engine);tutorialRendered=-1;beginRewardRound();view=engine.snapshot(0);selected=view.own.selected;paused=false;mapAim=false;resetInput();renderer.cameraKey=null;setScreen('battle');$('modeLabel').textContent='新手实战引导';showTutorialStep();updateHUD();
@@ -103,15 +106,16 @@ function updateHUD(){
  const bomber=view.shots.find(s=>s.mine&&s.kind==='bomber');$('takeBomber').classList.toggle('hidden',!bomber||!!pilot);const uav=view.shots.find(s=>s.mine&&s.kind==='uav');$('takeUAV').classList.toggle('hidden',!uav||!!pilot||!!uav.orbit);$('returnVehicle').classList.toggle('hidden',!pilot);$('uavOrbit').classList.toggle('hidden',!uav||!!pilot&&pilot.kind!=='uav');$('uavOrbitLabel').textContent=uav&&uav.orbit?'手动飞行':'50m盘旋';$('uavOrbit').classList.toggle('active',!!uav&&!!uav.orbit);
  $('cameraBadge').querySelector('span').textContent=pilot?`${names[pilot.kind]} / 手动追尾`:'发射车 / 第三人称';$('stickLabel').textContent=pilot?'左右转向 / 上下俯仰':'驾驶 / 转向';
  $('flightMode').textContent=pilot?`${names[pilot.kind]} · ${pilot.remaining.toFixed(0)}s 续航`:selected==='artillery'?`火炮 / 连续瞄准`:uav&&uav.orbit?`无人机盘旋 · ${uav.remaining.toFixed(0)}s 能量`:'地面机动 / LAUNCHER';$('altitude').textContent=pilot?`离地 ${Math.max(0,pilot.y-terrain(pilot.x,pilot.z)).toFixed(0)} m · ${pilot.speed} m/s`:`速度 ${(Math.abs(p.speed)*3.6).toFixed(0)} km/h`;
+ const canScope=canUseGunSight(p);if(!canScope)renderer.gunSight=false;$('gunSightToggle').classList.toggle('hidden',!canScope);$('gunSightToggle').textContent=renderer.gunSight?'关闭炮镜':'炮镜 2.5×';$('gunSightToggle').setAttribute('aria-pressed',String(!!renderer.gunSight));$('gunSightOverlay').classList.toggle('hidden',!renderer.gunSight);$('battle').classList.toggle('gun-sight-active',!!renderer.gunSight);
  $('mapAimToggle').classList.toggle('hidden',!!pilot||selected!=='artillery');if(pilot||selected!=='artillery')mapAim=false;renderer.mapAim=mapAim;$('mapCameraControls').classList.toggle('hidden',!mapAim);$('mapAimToggle').textContent=mapAim?'返回车尾视角':'地图瞄准';
  const a=pilot||p.aim[selected];let aimText=`仰角 ${(a.pitch*180/Math.PI).toFixed(0)}°`;
- if(!pilot&&selected==='artillery'){const arc=ballistic(p);aimText+=arc.range===null?' · 落点在战区外':` · 距离 ${arc.range.toFixed(0)} m`;}else aimText+=` · 航向 ${((a.yaw*180/Math.PI+360)%360).toFixed(0)}°`;$('aimInfo').textContent=aimText;
- document.querySelector('.weapon-row').style.setProperty('--weapon-count',p.weapons.length);
- for(const b of document.querySelectorAll('.weapon')){const k=b.dataset.weapon,cd=p.cd[k],available=p.weapons.includes(k);b.classList.toggle('hidden',!available);b.disabled=!available;b.style.order=p.weapons.indexOf(k);b.classList.toggle('selected',k===selected);b.classList.toggle('cooling',cd>0);b.querySelector('.cooldown').style.width=C[k]&&cd>0?cd/weaponSpec(p,k).cooldown*100+'%':'0%';b.querySelector('small').textContent=k==='highExplosive'&&p.heArmed?'已装填':k==='tankCannon'&&p.heArmed?'高爆弹就绪':k==='autocannon'?(p.reloadLeft>0?`换弹 ${p.reloadLeft.toFixed(1)}s`:`${p.ammo}/10`):k==='repair'?(p.repairLeft>0?`维修 ${p.repairLeft.toFixed(1)}s`:p.repairUsed?'已使用':'一次 / 局'):k==='observation'&&p.observationLeft>0?`观察 ${p.observationLeft.toFixed(1)}s`:cd>0?`${cd.toFixed(1)}s`:k==='mg'?'按住开火':k==='uav'&&uav?(uav.orbit?'盘旋中':'飞行中'):'就绪';}
+ if(!pilot&&selected==='artillery'){const arc=renderer.artilleryPreview(p);aimText+=arc.range===null?' · 落点在战区外':` · 距离 ${arc.range.toFixed(0)} m`;}else aimText+=` · 航向 ${((a.yaw*180/Math.PI+360)%360).toFixed(0)}°`;$('aimInfo').textContent=aimText;
+ weaponRow.style.setProperty('--weapon-count',p.weapons.length);
+ for(const b of weaponButtons){const k=b.dataset.weapon,cd=p.cd[k],available=p.weapons.includes(k);b.classList.toggle('hidden',!available);b.disabled=!available;b.style.order=p.weapons.indexOf(k);b.classList.toggle('selected',k===selected);b.classList.toggle('cooling',cd>0);weaponParts.get(b).cooldown.style.width=C[k]&&cd>0?cd/weaponSpec(p,k).cooldown*100+'%':'0%';weaponParts.get(b).label.textContent=k==='highExplosive'&&p.heArmed?'已装填':k==='tankCannon'&&p.heArmed?'高爆弹就绪':k==='autocannon'?(p.reloadLeft>0?`换弹 ${p.reloadLeft.toFixed(1)}s`:`${p.ammo}/10`):k==='repair'?(p.repairLeft>0?`维修 ${p.repairLeft.toFixed(1)}s`:p.repairUsed?'已使用':'一次 / 局'):k==='observation'&&p.observationLeft>0?`观察 ${p.observationLeft.toFixed(1)}s`:cd>0?`${cd.toFixed(1)}s`:k==='mg'?'按住开火':k==='uav'&&uav?(uav.orbit?'盘旋中':'飞行中'):'就绪';}
  const cd=p.cd[selected],fb=$('fireButton');fb.classList.toggle('cooling',!pilot&&cd>0);fb.classList.toggle('firing',p.mg);fb.disabled=false;
- $('fireLabel').textContent=p.repairLeft>0?`维修 ${p.repairLeft.toFixed(1)}s`:selected==='autocannon'&&p.reloadLeft>0?`换弹 ${p.reloadLeft.toFixed(1)}s`:selected==='highExplosive'?(p.heArmed?'已装填':'装填高爆'):selected==='repair'?'维修':selected==='observation'?'观察':pilot?(pilot.kind==='bomber'?(pilot.bombs?'投弹':'已投弹'):pilot.kind==='sam'?'飞行中':'引爆'):selected==='mg'?'开火':cd>0?`${cd.toFixed(1)}s`:'发射';$('fireSub').textContent=p.repairLeft>0?'原地维修中':selected==='autocannon'?`${p.ammo}/10 · 20mm机炮`:selected==='highExplosive'?'下一发 · 半径15m / 中心95伤害':selected==='tankCannon'?(p.heArmed?'高爆弹 · 中心95伤害':'122mm · 单体90伤害'):selected==='repair'?(p.repairUsed?'本局已使用':'停车维修15秒'):selected==='observation'?'前方90° / 500m':pilot?(pilot.kind==='bomber'?'机腹炸弹分离':pilot.kind==='uav'?'贴近后自爆':'手动引爆'):selected==='reconPlane'?'指定航向后召唤':selected==='bomber'?'召唤并驾驶':selected==='sam'?'自动锁定':selected==='mg'?'按住持续射击':Math.abs(p.speed)>2?'停车后发射':'手动控制';
+ $('fireLabel').textContent=p.repairLeft>0?`维修 ${p.repairLeft.toFixed(1)}s`:selected==='autocannon'&&p.reloadLeft>0?`换弹 ${p.reloadLeft.toFixed(1)}s`:selected==='highExplosive'?(p.heArmed?'已装填':'装填高爆'):selected==='repair'?'维修':selected==='observation'?'观察':pilot?(pilot.kind==='bomber'?(pilot.bombs?'投弹':'已投弹'):pilot.kind==='sam'?'飞行中':'引爆'):selected==='mg'?'开火':cd>0?`${cd.toFixed(1)}s`:'发射';$('fireSub').textContent=p.repairLeft>0?'原地维修中':selected==='autocannon'?`${p.ammo}/10 · 20mm机炮`:selected==='highExplosive'?'下一发 · 半径15m / 中心95伤害':selected==='tankCannon'?(p.heArmed?'高爆弹 · 中心95伤害':'122mm · 90伤害 / 半径5米'):selected==='repair'?(p.repairUsed?'本局已使用':'停车维修15秒'):selected==='observation'?'前方90° / 500m':pilot?(pilot.kind==='bomber'?'机腹炸弹分离':pilot.kind==='uav'?'贴近后自爆':'手动引爆'):selected==='reconPlane'?'指定航向后召唤':selected==='bomber'?'召唤并驾驶':selected==='sam'?'自动锁定':selected==='mg'?'按住持续射击':Math.abs(p.speed)>2?'停车后发射':'手动控制';
  $('dragHint').textContent=pilot?'拖动调整航向':selected==='artillery'&&vehicleSpec(p.vehicleId).hullAim?'拖动俯仰 / 车体转向瞄准':selected==='sam'?'发射后自动追踪':'右侧拖动瞄准';
- const hints={tankCannon:'122mm火炮 · 装填5秒 · 可移动开火',highExplosive:'下一发炮弹变为高爆弹 · 冷却30秒',autocannon:'20mm机炮 · 按住连续射击 · 可移动开火',repair:'每局一次 · 原地维修15秒',observation:'前方90°扇形侦察 · 持续8秒',reconPlane:'指定航向 · 高空直线侦察',bomber:'驾驶轰炸机 · 按发射投弹',uav:'手动侦察 · 可切换50m盘旋',missile:`手动飞行 · 命中${weaponSpec(p,'missile').directDamage}伤害`,artillery:`连续瞄准 · 拖动瞄准 / 地图选点`,sam:'自动锁定空中目标 · 装填25秒',mg:'手动瞄准空中目标 · 按住开火'};
+ const hints={tankCannon:'122mm火炮 · 装填10秒 · 爆炸半径5米 · 可移动开火',highExplosive:'下一发炮弹变为高爆弹 · 冷却30秒',autocannon:'20mm机炮 · 按住连续射击 · 可移动开火',repair:'每局一次 · 原地维修15秒',observation:'前方90°扇形侦察 · 持续8秒',reconPlane:'指定航向 · 高空直线侦察',bomber:'驾驶轰炸机 · 按发射投弹',uav:'手动侦察 · 可切换50m盘旋',missile:`手动飞行 · 命中${weaponSpec(p,'missile').directDamage}伤害`,artillery:`连续瞄准 · 拖动瞄准 / 地图选点`,sam:'自动锁定空中目标 · 装填25秒',mg:'手动瞄准空中目标 · 按住开火'};
  $('actionHint').textContent=pilot?'左摇杆控制飞行 · 可随时返回车辆':hints[selected];
  const count=$('countdown');count.classList.toggle('hidden',view.started);if(!view.started)count.innerHTML=`${Math.ceil(view.countdown)}<small>正在进入未知空域</small>`;
  if(view.log.length&&view.log[0].id!==lastLog){const log=view.log[0];lastLog=log.id;$('eventLine').querySelector('span').textContent=log.text;$('eventLine').className='event-line '+(['hit','danger'].includes(log.kind)?'danger':log.kind==='warning'?'warning':'');if(log.kind==='lock'){audio.play('lock');vibrate(25);}}
@@ -206,11 +210,12 @@ document.querySelectorAll('[data-difficulty]').forEach(b=>b.classList.toggle('ch
 if(EDITION==='h5')$('openLAN').classList.add('hidden');
 $('battleMode').addEventListener('change',()=>{battleMode=$('battleMode').value;});
 $('startAI').addEventListener('click',()=>startAI());$('openShop').addEventListener('click',shop);$('openWarehouse').addEventListener('click',warehouse);walletUI();$('openLAN').addEventListener('click',lanMenu);$('openGuide').addEventListener('click',()=>guide());$('pauseButton').addEventListener('click',showPause);
-document.querySelectorAll('[data-weapon]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.weapon)));
+weaponButtons.forEach(b=>b.addEventListener('click',()=>select(b.dataset.weapon)));
 $('returnVehicle').addEventListener('click',()=>{stopFire();resetInput();dispatch({type:'vehicle'});updateHUD();});
 $('takeUAV').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();dispatch({type:'pilot',id:u.id});updateHUD();}});
 $('uavOrbit').addEventListener('click',()=>{const u=view&&view.shots.find(s=>s.mine&&s.kind==='uav');if(u){resetInput();control();dispatch({type:'uav-orbit',id:u.id,active:!u.orbit});updateHUD();}});
 $('battleMap').addEventListener('change',e=>{battleMap=e.target.value;});
+$('gunSightToggle').onclick=()=>{if(!view||!canUseGunSight(view.own))return;renderer.gunSight=!renderer.gunSight;resetInput();renderer.cameraKey=null;updateHUD();};
 $('mapZoomIn').onclick=()=>renderer.zoomMap(.8);$('mapZoomOut').onclick=()=>renderer.zoomMap(1.25);
 $('mapAimToggle').addEventListener('click',()=>{mapAim=!mapAim;resetInput();renderer.cameraKey=null;updateHUD();});
 $('fireButton').addEventListener('pointerdown',e=>{if(firePointer!==null||modalKind)return;e.preventDefault();firePointer=e.pointerId;try{$('fireButton').setPointerCapture(e.pointerId);}catch(_){}fire();});
@@ -231,11 +236,11 @@ $('world').addEventListener('pointermove',e=>{
   else if(mapGesture.moved||Math.hypot(e.clientX-mapGesture.x,e.clientY-mapGesture.y)>8){mapGesture.moved=true;renderer.panMap(e.clientX-prev.x,e.clientY-prev.y);}
   mapPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});return;
  }
- if(aimPointer!==e.pointerId||!drag)return;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006,pitch:drag.pitch-(e.clientY-drag.y)*.0045};
+ if(aimPointer!==e.pointerId||!drag)return;const sensitivity=renderer.gunSight?1/GUN_SIGHT_ZOOM:1;aimTarget={yaw:drag.yaw+(e.clientX-drag.x)*.006*sensitivity,pitch:drag.pitch-(e.clientY-drag.y)*.0045*sensitivity};
 });
 function releaseAim(e){if(mapPointers.has(e.pointerId)){if(e.type==='pointerup'&&mapPointers.size===1&&!mapGesture.moved){const q=renderer.mapTarget(e.clientX,e.clientY);if(q)dispatch({type:'map-aim',x:q.x,z:q.z});}mapPointers.delete(e.pointerId);return;}if(aimPointer!==e.pointerId)return;control();aimPointer=null;drag=null;}
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('world').addEventListener(name,releaseAim);
-window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)return;const k=e.key.toLowerCase();if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();keys.add(k);}else if(k===' '&&!e.repeat){e.preventDefault();fire();}else if(/^[1-5]$/.test(k))select(view.own.weapons[Number(k)-1]);else if(k==='f'){$('returnVehicle').click();}else if(k==='escape')showPause();});
+window.addEventListener('keydown',e=>{if(screen!=='battle'||modalKind||!view)return;const k=e.key.toLowerCase();if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();keys.add(k);}else if(k===' '&&!e.repeat){e.preventDefault();fire();}else if(/^[1-5]$/.test(k))select(view.own.weapons[Number(k)-1]);else if(k==='v'&&!e.repeat){$('gunSightToggle').click();}else if(k==='f'){$('returnVehicle').click();}else if(k==='escape')showPause();});
 window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());if(e.key===' ')stopFire();});
 window.showPause=showPause;
 window.onNativeBack=function(){if(modalKind==='interrupted'){returnMenu();return;}if(modalKind==='pause'){paused=false;closeModal();return;}if(screen==='battle'){if(view&&view.over)returnMenu();else showPause();}else if(modalKind){if(['waiting','join','interrupted'].includes(modalKind)){disconnect(false);lanMenu();}else closeModal();}else if(native&&native.finishApp)native.finishApp();};
