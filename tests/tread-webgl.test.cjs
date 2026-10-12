@@ -10,10 +10,10 @@ const {open}=require('./browser-helpers.cjs');
    const T=await import('./three.module.js'),r=GameDebug.renderer,B=window.Blindfire,canvas=document.createElement('canvas'),gl=canvas.getContext('webgl2'),reports=[],images=[];
    if(!gl)throw Error('WebGL2 unavailable');
    function compile(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
-   for(const id of ['kfz_artillery','b_tank']){
+   for(const id of ['kfz_artillery','b_tank','cougar_artillery']){
     const asset=r.vehicleModels[0][id];
     for(const belt of asset.tracks.belts){
-     if(belt.uvSlope){const p=belt.mesh.geometry.attributes.position,version=p.version;for(let step=-24;step<=24;step++){const travel=step*.4;r.updateTruck({position:new T.Vector3(),rotation:new T.Euler(),userData:{...asset,vehicleId:id}},{...new B.Engine({mode:'lan',vehicles:[id]}).players[0],trackTravel:{left:travel,right:travel}},'autocannon',0);if(belt.uniform.value!==-travel||p.version!==version)throw Error('Continuous grey track travel or silhouette changed');}reports.push({id,side:belt.side,vertices:p.count,phases:49,maxEnvelopeEscape:0,animation:'shader UV travel; authored geometry fixed'});continue;}
+     if(belt.uvSlope){const p=belt.mesh.geometry.attributes.position,version=p.version;for(let step=-24;step<=24;step++){const travel=step*.4;r.updateTruck({position:new T.Vector3(),rotation:new T.Euler(),userData:{...asset,vehicleId:id}},{...new B.Engine({mode:'lan',vehicles:[id]}).players[0],trackTravel:{left:travel,right:travel}},'autocannon',0);if(belt.uniform.value!==(id==='cougar_artillery'?travel:-travel)||p.version!==version)throw Error('Continuous grey track travel or silhouette changed');}reports.push({id,side:belt.side,vertices:p.count,phases:49,maxEnvelopeEscape:0,animation:'shader UV travel; authored geometry fixed'});continue;}
      const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader};belt.mesh.material.onBeforeCompile(shader);
      const prefix=shader.vertexShader.slice(0,shader.vertexShader.indexOf('#define STANDARD')).replace('attribute vec4 treadPhase','in vec4 treadPhase');
      const normals=shader.vertexShader.split('#include <beginnormal_vertex>')[1].split('#include')[0],positions=shader.vertexShader.split('#include <begin_vertex>')[1].split('#include')[0];
@@ -36,6 +36,13 @@ const {open}=require('./browser-helpers.cjs');
     const engine=new B.Engine({mode:'lan',mapId:'city',countdown:0,vehicles:[id]}),p=engine.players[0];Object.assign(p,{x:1000,z:1500,y:B.terrain(1000,1500),yaw:0});for(const a of Object.values(p.aim)){a.yaw=0;a.pitch=0;}r.landscapeMap='city';ground.position.set(p.x,p.y,p.z);
     for(const [pose,left,right] of [['rest',0,0],['forward',1.7,1.7],['reverse',-2.6,-2.6],['turn_left',-1.3,1.3],['turn_right',2.8,-2.8]]){p.trackTravel={left,right};p.wheelTravel=(left+right)/2;r.updateTruck(group,p,p.selected,0);camera.position.set(p.x+7.7,p.y+3.1,p.z+5.2);camera.lookAt(p.x,p.y+1.0,p.z);renderer.render(scene,camera);images.push({name:id+'_'+pose+'.png',image:renderCanvas.toDataURL('image/png')});}
     if(id==='b_tank'){for(const [pose,yaw,pitch]of [['turret_up',.75,B.VEHICLES[id].maxPitch],['turret_down',-.75,B.VEHICLES[id].minPitch]]){p.aim.autocannon={yaw,pitch};p.trackTravel={left:0,right:0};r.updateTruck(group,p,'autocannon',0);renderer.render(scene,camera);images.push({name:id+'_'+pose+'.png',image:renderCanvas.toDataURL('image/png')});}}
+    if(id==='cougar_artillery'){
+     for(const [pose,yaw,pitch,deployed]of [['turret_up',Math.PI/6,B.VEHICLES[id].maxPitch,true],['turret_down',-Math.PI/6,B.VEHICLES[id].minPitch,false]]){
+      p.aim.artillery={yaw,pitch};p.spadeDeployed=deployed;p.trackTravel={left:0,right:0};for(let step=1;step<=30;step++)r.updateTruck(group,p,'artillery',(deployed?0:3)+step*.05);
+      if(Math.abs(group.userData.spade.rotation.x-(deployed?group.userData.spadeAngle:0))>.002)throw Error('M53 spade animation failed to settle');
+      renderer.render(scene,camera);images.push({name:id+'_'+pose+'.png',image:renderCanvas.toDataURL('image/png')});
+     }
+    }
     renderer.dispose();
    }
    return {reports,images};

@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{open}=require(
 (async()=>{const{browser,server,url}=await open(),page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/WebGL|shader|texture/i.test(m.text()))errors.push(m.text());});
 try{
- await page.goto(url);await page.waitForFunction(()=>GameDebug?.renderer.modelsReady,null,{timeout:60000});
+ await page.goto(url);await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady,null,{timeout:60000});
  const report=await page.evaluate(async()=>{
   const T=await import('./three.module.js'),{EXPLOSION_SEQUENCES:specs}=await import('./effects/sequences.js'),r=GameDebug.renderer,B=Blindfire;
   await r.explosionsPromise;if(r.explosionError)throw Error(r.explosionError);

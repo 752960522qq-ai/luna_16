@@ -237,7 +237,7 @@
       this.effects.push({id:++this.id,x:p.x,y:p.y,z:p.z,kind,owner,radius,visualSize,
         visualScale:visualSize==='small'&&radius<=5?.35:1,
         grounded:kind==='explosion'&&p.y-terrain(p.x,p.z)<3,born:this.t,life});
-      if(this.effects.length>40)this.effects.shift();if(kind==='explosion')this.sound('explosion',p,owner);
+      if(this.effects.length>40)this.effects.shift();if(kind==='explosion'&&radius>5)this.sound('explosion',p,owner);
     }
     command(id, action) {
       const p = this.players[id];
