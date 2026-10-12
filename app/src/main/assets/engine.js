@@ -418,7 +418,7 @@
         } else {
           p.pilot = null;
           const target = (mods.drive?p.drive.throttle:0) * (p.drive.throttle < 0 ? spec.reverseSpeed : spec.speed)*mods.speed;if(!mods.drive)p.speed=0;
-          p.speed += (target - p.speed) * (1-Math.exp(-dt*Motion.ACCEL[spec.accelerationRating]));
+          p.speed += (target - p.speed) * (1-Math.exp(-dt*Motion.ACCEL[spec.accelerationRating]));p.speed=clamp(p.speed,-spec.reverseSpeed*mods.speed,spec.speed*mods.speed);
           const turn = (p.repairUntil||!mods.drive?0:p.drive.steer) * dt * Motion.TURN[spec.turnRating] * (Math.abs(p.speed) > .5 ? Math.sign(p.speed) : .5);
           if(mods.drive&&spec.hullAim&&p.hullAimYaw!==undefined&&Math.abs(p.drive.steer)<.05){const next=wrap(p.yaw+clamp(wrap(p.hullAimYaw-p.yaw),-Motion.TURN[spec.turnRating]*dt,Motion.TURN[spec.turnRating]*dt));if(vehicleClear(p.x,p.z,{...p,yaw:next}))p.yaw=next;}else if(Math.abs(p.drive.steer)>.05)p.hullAimYaw=undefined;
           p.yaw = wrap(p.yaw + turn); for (const a of Object.values(p.aim)) a.yaw = wrap(a.yaw + turn);
@@ -510,7 +510,7 @@
       if(target.hp<=0||!Number.isFinite(amount)||amount<=0)return;
       if(owner!==null&&amount<(vehicleSpec(target.vehicleId).immunity||0))return;
       const dealt = Math.min(target.hp, amount); target.hp -= dealt; if(owner!==null)this.players[owner].stats.damage += dealt;
-      const injury=Crew.wound(target.crew,dealt/target.maxHp,()=>this.randomCrew());if(injury){this.note(target.id,Crew.ROLES[injury.member.role]+'阵亡'+(injury.moves.length?' · 已优先补位炮长/驾驶员':''),'crew');if(injury.destroyed)target.hp=0;}
+      const oldCrew=Crew.modifiers(target.crew),injury=Crew.wound(target.crew,dealt/target.maxHp,()=>this.randomCrew());if(injury){const current=Crew.modifiers(target.crew);for(const kind of Object.keys(C)){const before=oldCrew.cooldown*(Crew.MAIN.has(kind)?oldCrew.mainCooldown:1),after=current.cooldown*(Crew.MAIN.has(kind)?current.mainCooldown:1);target.cd[kind]*=after/before;}if(target.reloadUntil>this.t)target.reloadUntil=this.t+(target.reloadUntil-this.t)*current.cooldown*current.mainCooldown/(oldCrew.cooldown*oldCrew.mainCooldown);this.note(target.id,Crew.ROLES[injury.member.role]+'阵亡'+(injury.moves.length?' · 已优先补位炮长/驾驶员':''),'crew');if(injury.destroyed)target.hp=0;}
       this.note(target.id, `发射车受损 −${dealt} HP · 注意尾迹来源`, 'hit'); if(owner!==null)this.note(owner, `命中敌方 −${dealt} HP`, 'hit-enemy');
       this.sound('impact',{...target,y:target.y+3},target.id);if(owner!==null)this.sound('confirm',target,owner);
       if(target.hp<=0){if(owner!==null&&owner!==target.id){this.players[owner].stats.kills++;this.note(owner,'击毁 '+vehicleSpec(target.vehicleId).name,'kill');this.sound('confirm',target,owner);}target.eliminatedAt=this.t;target.pilot=null;target.repairUntil=0;target.mg=false;this.eliminations.push(target.id);if(this.battleMode==='duel')this.finish(owner,'摧毁敌方发射车');else if(!this.resolvingBlast)this.checkSurvivor();}

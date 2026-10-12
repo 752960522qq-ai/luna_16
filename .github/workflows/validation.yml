@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Font validation dependencies
+        run: python3 -m pip install fonttools
       - name: Gameplay rules
         run: |
           node tests/crew-recon-update.test.cjs
@@ -24,6 +26,7 @@ jobs:
           python3 tests/models.test.py
           python3 tests/audio-assets.test.py
           python3 tests/combat-model-assets.test.py
+          python3 tests/ui-font.test.py
       - name: Rendered models and browser behavior
         run: |
           node tests/renderer-air-support.test.mjs
