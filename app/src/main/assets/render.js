@@ -4,6 +4,7 @@ import { GLTFLoader } from './GLTFLoader.js';
 import { MeshoptDecoder } from './meshopt_decoder.module.js';
 import { articulateBear,articulateAvenger,rollTracks,articulateKFZ,articulateTank,rollBelts,articulateTierTwo,articulateCougar } from './vehicle-parts.js';
 import {frameFlight} from './flight-camera.js';
+import {ExplosionEffects} from './explosion-effects.js';
 import { ChaseCamera } from './chase-camera.js';
 import { applyGroundContact } from './vehicle-grounding.js';
 import { updatePolyline } from './render-lines.js';
@@ -80,6 +81,7 @@ export class Renderer{
       this.gl=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance',alpha:false});this.gl.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.gl.outputColorSpace=THREE.SRGBColorSpace;
       this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#b8cbd0');this.scene.fog=new THREE.Fog('#b8c5ba',230,2400);this.camera=new THREE.PerspectiveCamera(62,1,.35,8000);
       this.scene.add(new THREE.HemisphereLight('#ddeef1','#484535',2.1));const sun=new THREE.DirectionalLight('#fff0d2',2.3);sun.position.set(-240,520,-250);this.scene.add(sun);
+      this.explosions=new ExplosionEffects();this.explosionsPromise=this.explosions.ready.catch(e=>{this.explosionError=String(e);console.error('Explosion textures unavailable',e);});
       this.createLandscape();this.ownTruck=truck();this.enemyTruck=truck(true);this.scene.add(this.ownTruck,this.enemyTruck);this.enemyTruck.visible=false;
       this.modelsPromise=this.loadVehicles().catch(e=>{this.modelError=String(e);console.error('Vehicle model unavailable',e);const panel=document.getElementById('graphicsError');panel.querySelector('h3').textContent='车辆模型载入失败';panel.querySelector('p').textContent='请重新打开游戏后重试。';panel.classList.remove('hidden');});
       this.arc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:'#ffe58a',dashSize:7,gapSize:4,transparent:true,opacity:1,depthTest:false,depthWrite:false}));this.arc.renderOrder=11;this.scene.add(this.arc);
@@ -179,7 +181,18 @@ export class Renderer{
     for(const[id,g]of this.meshes)if(!active.has(id)){this.scene.remove(g);this.disposeGroup(g);this.meshes.delete(id);}
     const trailIds=new Set();for(const tr of view?view.trails:[]){trailIds.add(tr.id);let line=this.trailMeshes.get(tr.id);if(!line){line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:'#ffffff',transparent:true,opacity:.72}));line.frustumCulled=false;this.scene.add(line);this.trailMeshes.set(tr.id,line);}updatePolyline(line,tr.points);line.material.opacity=.66*Math.max(.12,1-tr.points[tr.points.length-1].age/8);}
     for(const[id,line]of this.trailMeshes)if(!trailIds.has(id)){this.scene.remove(line);line.geometry.dispose();line.material.dispose();this.trailMeshes.delete(id);}
-    const effectIds=new Set();for(const e of view?view.effects:[]){effectIds.add(e.id);let g=this.effectMeshes.get(e.id);if(!g){if(e.kind==='crater'){g=new THREE.Mesh(new THREE.CircleGeometry(e.radius,16),new THREE.MeshBasicMaterial({color:'#4b473b',transparent:true,opacity:.4,depthWrite:false}));g.rotation.x=-Math.PI/2;}else g=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshBasicMaterial({color:e.kind==='spark'?'#fff4bf':'#ffc570',transparent:true,opacity:.8,depthWrite:false}));this.effectMeshes.set(e.id,g);this.scene.add(g);}g.position.set(e.x,e.y,e.z);if(e.kind!=='crater'){g.scale.setScalar(Math.max(.2,e.radius*(.2+e.age*.8)));g.material.opacity=Math.max(0,.7*(1-e.age/e.life));}}
+    const effectIds=new Set();for(const e of view?view.effects:[]){
+      effectIds.add(e.id);let g=this.effectMeshes.get(e.id);
+      if(!g){
+        if(e.kind==='crater'){g=new THREE.Mesh(new THREE.CircleGeometry(e.radius,16),new THREE.MeshBasicMaterial({color:'#4b473b',transparent:true,opacity:.4,depthWrite:false}));g.rotation.x=-Math.PI/2;}
+        else if(e.kind==='explosion'&&this.explosions?.textures.size===3)g=this.explosions.create(e);
+        else if(e.kind==='explosion')continue; // Start at current age when textures arrive.
+        else g=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshBasicMaterial({color:'#fff4bf',transparent:true,opacity:.8,depthWrite:false}));
+        this.effectMeshes.set(e.id,g);this.scene.add(g);
+      }
+      if(g.userData.explosion)this.explosions.update(g,e);
+      else {g.position.set(e.x,e.y,e.z);if(e.kind!=='crater'){g.scale.setScalar(Math.max(.2,e.radius*(.2+e.age*.8)));g.material.opacity=Math.max(0,.7*(1-e.age/e.life));}}
+    }
     for(const[id,g]of this.effectMeshes)if(!effectIds.has(id)){this.scene.remove(g);g.geometry.dispose();g.material.dispose();this.effectMeshes.delete(id);}
     const pilot=view&&view.shots.find(s=>s.id===p.pilot&&s.mine);this.arc.visible=!demo&&!pilot&&p.selected==='artillery';this.hitRing.visible=this.arc.visible;this.landingArrow.visible=false;
     this.lastArc=this.arc.visible?this.artilleryPreview(p):null;
@@ -199,6 +212,7 @@ export class Renderer{
     const landing=this.lastArc&&this.lastArc.hit;this.landingArrow.visible=!!landing;
     if(landing){const distance=this.camera.position.distanceTo(new THREE.Vector3(landing.x,landing.y,landing.z)),scale=B.clamp(distance*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/innerHeight*(28/24),.6,9);this.landingArrow.scale.setScalar(scale);this.landingArrow.position.set(landing.x,landing.y+scale*(15+Math.sin(t*3)*1.5),landing.z);this.landingArrow.quaternion.copy(this.camera.quaternion);}
     this.scene.fog=this.mapAim?null:(this.normalFog||=(new THREE.Fog('#b8c5ba',230,2400)));
+    for(const g of this.effectMeshes.values())if(g.userData.explosion)g.quaternion.copy(this.camera.quaternion);
     this.camera.updateMatrixWorld();if(view)this.drawEnemyDots(view);else{document.getElementById('enemyDots').replaceChildren();this.enemyDotNodes?.clear();}
     const scoped=this.gunSight&&canUseGunSight(p);if(scoped)this.ownTruck.visible=false;this.gl.render(this.scene,this.camera);if(scoped)this.ownTruck.visible=true;
     if(view){if(this.miniDrawAt===undefined||t-this.miniDrawAt>=.1||t<this.miniDrawAt){this.drawMini(view);this.miniDrawAt=t;}this.updateReticle(p,pilot);this.drawScope(p,this.lastArc);}

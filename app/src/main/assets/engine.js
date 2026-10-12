@@ -232,7 +232,13 @@
     randomCrew(){let z=this.crewRng+=0x6D2B79F5;z=Math.imul(z^z>>>15,z|1);z^=z+Math.imul(z^z>>>7,z|61);return((z^z>>>14)>>>0)/4294967296;}
     note(id, text, kind = 'info') { const p = this.players[id]; p.log.unshift({ text, kind, t: this.t, id: ++this.id }); p.log.length = Math.min(5, p.log.length); }
     sound(kind, p, owner) { this.sounds.push({ id: ++this.id, kind, x: p.x, y: p.y, z: p.z, owner, t: this.t }); if(this.sounds.length>64)this.sounds.shift(); }
-    effect(p, kind, owner, radius = 24) { this.effects.push({ id: ++this.id, x: p.x, y: p.y, z: p.z, kind, owner, radius, born: this.t, life: kind === 'crater' ? 12 : 1.15 }); if (this.effects.length > 40) this.effects.shift(); if(kind==='explosion')this.sound('explosion',p,owner); }
+    effect(p, kind, owner, radius = 24, visualSize = radius<18?'small':'medium') {
+      const life=kind==='crater'?12:kind==='explosion'?({small:1.4,medium:1.9,large:2.6}[visualSize]||1.9):1.15;
+      this.effects.push({id:++this.id,x:p.x,y:p.y,z:p.z,kind,owner,radius,visualSize,
+        visualScale:visualSize==='small'&&radius<=5?.35:1,
+        grounded:kind==='explosion'&&p.y-terrain(p.x,p.z)<3,born:this.t,life});
+      if(this.effects.length>40)this.effects.shift();if(kind==='explosion')this.sound('explosion',p,owner);
+    }
     command(id, action) {
       const p = this.players[id];
       if (!p || !action || typeof action !== 'object' || this.over || p.hp<=0) return { ok: false, reason: '本局已结束' };
@@ -447,7 +453,7 @@
         if(!orbitStep){s.x += s.vx * dt; s.y += s.vy * dt - .5 * gravity * dt * dt; s.z += s.vz * dt; s.vy -= gravity * dt;}const stepDistance=dist3(prev,s);if(['autocannon','tankCannon'].includes(s.kind)&&s.distance+stepDistance>s.blastSpec.range){const f=Math.max(0,s.blastSpec.range-s.distance)/stepDistance;s.x=prev.x+(s.x-prev.x)*f;s.y=prev.y+(s.y-prev.y)*f;s.z=prev.z+(s.z-prev.z)*f;}s.distance+=dist3(prev,s);
         if (s.kind === 'artillery') { s.yaw = Math.atan2(s.vx, -s.vz); s.pitch = Math.atan2(s.vy, Math.hypot(s.vx, s.vz)); }
         const obstacle=treeHit(prev,s);
-        if(obstacle){Object.assign(s,{x:obstacle.x,y:obstacle.y,z:obstacle.z});if(['bullet','sam','autocannon'].includes(s.kind)){s.hp=0;this.effect(s,'spark',s.owner,4);}else this.explode(s);continue;}
+        if(obstacle){Object.assign(s,{x:obstacle.x,y:obstacle.y,z:obstacle.z});if(['bullet','sam','autocannon'].includes(s.kind)){s.hp=0;this.effect(s,s.kind==='autocannon'?'explosion':'spark',s.owner,4,'small');}else this.explode(s);continue;}
         this.intercept(s, prev);
         if (s.hp <= 0) continue;
         if (s.kind !== 'bullet' && this.t - s.sampleAt >= .15) {
@@ -457,13 +463,13 @@
         this.observeShot(s);
         const hit=this.players.filter(p=>p.id!==s.owner&&p.hp>0).map(p=>({p,hit:vehicleHit(prev,s,p,true)})).filter(q=>q.hit).sort((a,b)=>dist3(prev,a.hit)-dist3(prev,b.hit))[0];
         if(hit&&['missile','uav','artillery','bomb','tankCannon'].includes(s.kind)){Object.assign(s,hit.hit);this.explode(s,hit.p.id);continue;}
-        if(hit&&['bullet','autocannon'].includes(s.kind)){this.damage(hit.p,s.owner,s.kind==='bullet'?s.blastSpec.groundDamage:s.blastSpec.directDamage);s.hp=0;continue;}
+        if(hit&&['bullet','autocannon'].includes(s.kind)){this.damage(hit.p,s.owner,s.kind==='bullet'?s.blastSpec.groundDamage:s.blastSpec.directDamage);s.hp=0;if(s.kind==='autocannon')this.effect(s,'explosion',s.owner,4,'small');continue;}
         if(['autocannon','tankCannon'].includes(s.kind)&&s.distance>=s.blastSpec.range){s.hp=0;continue;}
         if (s.y <= surface(s.x, s.z)) {
           // Find a swept terrain/building impact so fast rounds do not tunnel.
           let lo = 0, hi = 1; for (let j = 0; j < 8; j++) { const f = (lo + hi) / 2, x = prev.x + (s.x - prev.x) * f, y = prev.y + (s.y - prev.y) * f, z = prev.z + (s.z - prev.z) * f; if (y > surface(x, z)) lo = f; else hi = f; }
           s.x = prev.x + (s.x - prev.x) * hi; s.z = prev.z + (s.z - prev.z) * hi; s.y = surface(s.x, s.z);
-          if (['bullet','sam','autocannon'].includes(s.kind)) { s.hp = 0; this.effect(s, 'spark', s.owner, 5); } else this.explode(s);
+          if (['bullet','sam','autocannon'].includes(s.kind)) { s.hp = 0; this.effect(s,s.kind==='autocannon'?'explosion':'spark',s.owner,5,'small'); } else this.explode(s);
           continue;
         }
         if (s.x < (['reconPlane','bomber'].includes(s.kind)?-800:-35) || s.x > W + (['reconPlane','bomber'].includes(s.kind)?800:35) || s.z < (['reconPlane','bomber'].includes(s.kind)?-800:-35) || s.z > H + (['reconPlane','bomber'].includes(s.kind)?800:35) || s.kind!=='artillery' && (s.y > 420 || this.t - s.born > s.ttl)) {
@@ -505,7 +511,8 @@
         if(amount){any=true;this.damage(target,s.owner,amount);}
       }
       this.resolvingBlast=false;if(this.battleMode==='dark_forest')this.checkSurvivor();
-      this.effect(s, 'explosion', s.owner, s.kind === 'missile' ? 34 : s.kind === 'artillery' ? 28 : 16);
+      const visualSize=s.kind==='bomb'||s.kind==='artillery'&&spec.directDamage>=140?'large':s.kind==='missile'||s.kind==='artillery'||s.kind==='tankCannon'&&spec.blastRadius>=15?'medium':'small';
+      this.effect(s,'explosion',s.owner,s.kind==='missile'?34:s.kind==='artillery'?28:16,visualSize);
       if (s.y - terrain(s.x, s.z) < 20) this.effect({ ...s, y: terrain(s.x, s.z) + .25 }, 'crater', s.owner, s.kind === 'missile' ? 14 : 8);
       for(const q of this.shots){if(q.id===excludeAir||q.hp<=0||q.owner===s.owner||!['uav','missile','sam','reconPlane','bomber'].includes(q.kind))continue;const r=dist3(s,q);if(!(spec.blastRadius>0)||r>spec.blastRadius)continue;const hit=Math.round(spec.directDamage*(1-r/spec.blastRadius));q.hp-=hit;if(q.hp<=0){this.players[s.owner].stats.intercepted++;this.effect(q,'explosion',s.owner,12);}}
       if (!any) this.note(s.owner, s.kind === 'uav' ? '无人机坠毁 · 未命中热源' : '爆炸未命中敌方发射车', 'info');
