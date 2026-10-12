@@ -7,7 +7,7 @@ export class ChaseCamera{
   const changed=!this.last||state.some((n,i)=>i===0?n!==this.last[i]:Math.abs(n-this.last[i])>.01);
   const dx=Math.sin(aim.yaw),dz=-Math.cos(aim.yaw),baseY=truck.position.y;
   if(changed){
-   truck.updateMatrixWorld(true);const model=truck.userData.node;let cached=this.localBounds.get(player.vehicleId);if(model&&!cached){model.updateMatrixWorld(true);cached=new THREE.Box3().setFromObject(truck).applyMatrix4(truck.matrixWorld.clone().invert());this.localBounds.set(player.vehicleId,cached);}if(cached)this.bounds.copy(cached).applyMatrix4(truck.matrixWorld);else this.bounds.setFromObject(truck);this.bounds.getSize(this.size);
+   truck.updateMatrixWorld(true);const model=truck.userData.node;let cached=this.localBounds.get(player.vehicleId);if(model&&!cached){model.updateMatrixWorld(true);cached=new THREE.Box3();const inverse=truck.matrixWorld.clone().invert();truck.traverse(mesh=>{if(!mesh.isMesh)return;if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();cached.union(mesh.geometry.boundingBox.clone().applyMatrix4(inverse.clone().multiply(mesh.matrixWorld)));});this.localBounds.set(player.vehicleId,cached);}if(cached)this.bounds.copy(cached).applyMatrix4(truck.matrixWorld);else this.bounds.setFromObject(truck);this.bounds.getSize(this.size);
    this.height=Math.max(this.size.y,2.5);this.distance=Math.max(12,this.height/(.35*2*Math.tan(62*Math.PI/360)));
    target.set(player.x,baseY+this.height*.55,player.z);
    for(let pass=0;pass<4;pass++){
