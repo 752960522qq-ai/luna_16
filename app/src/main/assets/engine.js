@@ -240,7 +240,7 @@
       if(p.repairUntil>this.t&&!['select','vehicle'].includes(k))return {ok:false,reason:'维修期间不可移动或攻击'};
       if (k === 'select') {
         if(!this.hasWeapon(p,action.weapon))return {ok:false,reason:'当前车辆未携带此武器'};
-        const previous={...(this.shots.find(s=>s.id===p.pilot&&s.owner===id)||p.aim[p.selected])};p.selected = action.weapon;this.setAim(p,previous);if(['observation','highExplosive'].includes(p.selected))p.aim[p.selected]={...p.aim[this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon']}; p.mg = false; return { ok: true };
+        const previous={...(this.shots.find(s=>s.id===p.pilot&&s.owner===id)||p.aim[p.selected])};p.selected = action.weapon;this.setAim(p,previous);if(['observation','highExplosive','repair','spade'].includes(p.selected))p.aim[p.selected]={...p.aim[this.hasWeapon(p,'artillery')?'artillery':this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon']}; p.mg = false; return { ok: true };
       }
       if (k === 'vehicle') { const flight=this.shots.find(s=>s.id===p.pilot&&s.owner===id);p.pilot = null;if(flight)this.setAim(p,flight); p.drive = { throttle: 0, steer: 0 }; p.mg = false; return { ok: true }; }
       if (k === 'pilot') {
@@ -294,7 +294,7 @@
       if(!this.hasWeapon(p,weapon))return {ok:false,reason:'当前车辆未携带此武器'};
       if(weapon==='spade'){if(Math.abs(p.speed)>.25)return {ok:false,reason:'停车后才能展开驻锄'};p.spadeDeployed=!p.spadeDeployed;p.cd.artillery*=p.spadeDeployed?.8:1.25;p.speed=0;p.drive={throttle:0,steer:0};this.sound('spade',p,id);this.note(id,p.spadeDeployed?'驻锄展开 · 火炮装填缩短20%':'驻锄收起 · 恢复机动','info');return {ok:true};}
       if(weapon==='repair'){if(p.repairUsed)return {ok:false,reason:'本局维修已使用'};if(p.hp>=p.maxHp)return {ok:false,reason:'生命值已满'};p.repairUsed=true;p.repairUntil=this.t+15;p.speed=0;p.drive={throttle:0,steer:0};p.mg=false;this.note(id,'紧急维修开始 · 原地15秒','info');return {ok:true};}
-      if(weapon==='observation'){if(p.cd.observation>0)return {ok:false,reason:'观察冷却中'};p.observationYaw=p.aim[this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon'].yaw;p.observationUntil=this.t+8;p.cd.observation=weaponSpec(p,'observation').cooldown;this.updateIntel();return {ok:true};}
+      if(weapon==='observation'){if(p.cd.observation>0)return {ok:false,reason:'观察冷却中'};p.observationYaw=p.aim[this.hasWeapon(p,'artillery')?'artillery':this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon'].yaw;p.observationUntil=this.t+8;p.cd.observation=weaponSpec(p,'observation').cooldown;this.updateIntel();return {ok:true};}
       if(weapon==='highExplosive'){if(p.heArmed)return {ok:false,reason:'下一发已经装填高爆弹'};if(p.cd.highExplosive>0)return {ok:false,reason:'高爆弹冷却中'};p.heArmed=true;p.cd.highExplosive=weaponSpec(p,'highExplosive').cooldown;this.note(id,'下一发122mm炮弹已装填高爆弹','attack');return {ok:true};}
       if(weapon==='autocannon'){if(p.reloadUntil>this.t)return {ok:false,reason:'机炮换弹中'};if(p.cd.autocannon>0)return {ok:false,reason:'机炮射击间隔'};const shot=this.launch(p,weapon);p.ammo--;p.cd.autocannon=weaponSpec(p,'autocannon').cooldown;p.stats.launches++;if(!p.ammo){p.reloadUntil=this.t+weaponSpec(p,'autocannon').reload;this.sound('reload',p,id);}return {ok:true,id:shot.id};}
       if (weapon === 'mg') return { ok: false, reason: '按住开火持续射击' };
@@ -323,7 +323,7 @@
       if (s) { s.yaw = wrap(a.yaw); s.pitch = clamp(a.pitch, -1.3, 1.4); }
       else {
         if(!this.hasWeapon(p,p.selected))return {ok:false,reason:'当前车辆未携带此武器'};
-        const v=vehicleSpec(p.vehicleId),q=artilleryParams(p),kind=['observation','highExplosive'].includes(p.selected)?(this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon'):p.selected,
+        const v=vehicleSpec(p.vehicleId),q=artilleryParams(p),kind=['observation','highExplosive','repair','spade'].includes(p.selected)?(this.hasWeapon(p,'artillery')?'artillery':this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon'):p.selected,
           launcher=v.launcherYaw!==undefined&&['uav','missile','sam'].includes(kind),lim=kind==='artillery'?[q.minPitch,q.maxPitch]:launcher?[v.launcherMinPitch,v.launcherMaxPitch]:PITCH[kind],
           aim={yaw:v.hullAim&&kind==='artillery'?p.yaw:v.turretYaw!==undefined&&kind==='artillery'?wrap(p.yaw+clamp(wrap(a.yaw-p.yaw),-v.turretYaw,v.turretYaw)):launcher?wrap(p.yaw+clamp(wrap(a.yaw-p.yaw),-v.launcherYaw,v.launcherYaw)):wrap(a.yaw),pitch:clamp(a.pitch,lim[0],lim[1])};
         p.aim[kind]=aim;if(kind!==p.selected)p.aim[p.selected]={...aim};if(v.hullAim&&kind==='artillery')p.hullAimYaw=wrap(a.yaw);
