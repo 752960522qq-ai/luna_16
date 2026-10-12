@@ -177,3 +177,29 @@ export function articulateTierTwo(raw,id){
  }
  for(const [parent,entries]of batches){batchParts(parent,entries);for(const e of entries)e.geo.dispose();}return {node:scene,model:true,turret:hero?yaw:null,launcher:hero?null:yaw,barrel:pitch,turretAxis:'y',launcherAxis:'y',barrelSign:1,mainGun:hero?'tankCannon':null,launcherWeapon:hero?null:'missile',wheels,tracks,source:hero?'IS-2':'9P149 Shturm-S'};
 }
+
+// M53/M55: preserve connected source pieces; separate the rear spade from hull and complete wheel assemblies from suspension.
+export function articulateCougar(scene){
+ scene.updateMatrixWorld(true);const turret=new THREE.Group(),barrel=new THREE.Group(),spade=new THREE.Group(),wheels=[],tracks={belts:[]};
+ turret.name='cougarTurret';turret.position.set(0,1.25,1.8);scene.add(turret);
+ barrel.name='cougarBarrelPitch';barrel.position.set(0,1.03,-1);turret.add(barrel);
+ spade.name='cougarSpade';spade.position.set(0,1.23,3.3);scene.add(spade);scene.updateMatrixWorld(true);
+ const collect=new Map(),add=(parent,geo,material)=>{if(!collect.has(parent))collect.set(parent,[]);collect.get(parent).push({geo,material});};
+ for(const name of ['M53_Turret','M53_Gun','M53_Hull','M53_Wheels','M53_Tracks']){
+ const mesh=scene.getObjectByName(name),geo=geometry(mesh.geometry,Array.from(mesh.geometry.index.array)).applyMatrix4(mesh.matrixWorld),cs=components(new THREE.Mesh(geo));
+ if(name==='M53_Tracks'){for(const c of cs)tracks.belts.push(surfaceBelt(scene,geometry(geo,c.indices),mesh.material));}
+ else if(name==='M53_Wheels'){
+ const centers=[];for(const c of cs){const s=c.box.getSize(new THREE.Vector3()),p=c.box.getCenter(new THREE.Vector3());if(Math.abs(p.x)>1&&s.y>.5&&s.y<1.15&&s.z>.5&&s.z<1.15&&s.x<.65&&Math.abs(s.y-s.z)<.13&&!centers.some(q=>Math.abs(q.x-p.x)<.5&&Math.hypot(q.y-p.y,q.z-p.z)<.12)){p.radius=Math.max(s.y,s.z)/2;centers.push(p);}}
+ const groups=centers.map((p,i)=>{const pivot=new THREE.Group();pivot.name='cougarWheel'+i;pivot.position.copy(p);scene.add(pivot);wheels.push({pivot,side:p.x<0?'left':'right',radius:p.radius,axis:'x',axisSign:1});return pivot;});scene.updateMatrixWorld(true);
+ for(const c of cs){const p=c.box.getCenter(new THREE.Vector3()),sz=c.box.getSize(new THREE.Vector3()),i=centers.findIndex(q=>Math.abs(q.x-p.x)<.35&&Math.hypot(q.y-p.y,q.z-p.z)<.14&&sz.y<1.15&&sz.z<1.15);add(i<0?scene:groups[i],geometry(geo,c.indices),mesh.material);}
+ }else if(name==='M53_Hull'){for(const c of cs)add(c.box.min.z>3.3?spade:scene,geometry(geo,c.indices),mesh.material);}
+ else add(name==='M53_Gun'?barrel:turret,geo.clone(),mesh.material);
+ mesh.removeFromParent();geo.dispose();
+ }
+ scene.updateMatrixWorld(true);for(const [parent,entries]of collect){batchParts(parent,entries);for(const e of entries)e.geo.dispose();}
+ // Choose a deployment angle that reaches ground without moving fixed hull parts or forcing blade vertices below ground.
+ scene.updateMatrixWorld(true);const verts=[];spade.traverse(o=>{if(o.isMesh){const a=o.geometry.attributes.position;for(let i=0;i<a.count;i++)verts.push(spade.worldToLocal(new THREE.Vector3().fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld)));}});
+ let deployedAngle=0;for(let angle=0;angle<1.1;angle+=.01){const low=Math.min(...verts.map(p=>spade.position.y+p.y*Math.cos(angle)-p.z*Math.sin(angle)));if(low<.03)break;deployedAngle=angle;}
+ if(wheels.length<16||!verts.length)throw Error('M53 wheel/spade extraction incomplete: '+wheels.length);
+ return{node:scene,model:true,turret,barrel,spade,spadeAngle:deployedAngle,turretAxis:'y',barrelSign:1,mainGun:'artillery',wheels,tracks,source:'Supplied M53/M55'};
+}

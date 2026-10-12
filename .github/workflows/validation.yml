@@ -15,6 +15,7 @@ jobs:
         run: python3 -m pip install fonttools
       - name: Gameplay rules
         run: |
+          node tests/cougar-update.test.mjs
           node tests/crew-recon-update.test.cjs
           node tests/engine.test.js
           node tests/garage.test.cjs
@@ -37,6 +38,7 @@ jobs:
             unset CHROMIUM_EXECUTABLE
           fi
           SOFTWARE_GL=1 node tests/combat-update-browser.test.cjs
+          SOFTWARE_GL=1 node tests/cougar-update-browser.test.cjs
           SOFTWARE_GL=1 node tests/tread-webgl.test.cjs
       - uses: actions/upload-artifact@v4
         if: always()

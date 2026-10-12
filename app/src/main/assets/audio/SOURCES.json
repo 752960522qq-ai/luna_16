@@ -180,6 +180,66 @@
       "loop": false,
       "modifications": "trim, mono, EQ, loudness normalization, 15 ms loop-boundary fade / event envelope",
       "sha256": "3b896eaa9e38490dc51921bfbc728844d804d5366be4e2d1bfd4e99eab2c0aeb"
+    },
+    {
+      "file": "bomber-engine.ogg",
+      "source": "Propeller plane",
+      "author": "Breviceps",
+      "url": "https://freesound.org/people/Breviceps/sounds/515293/",
+      "license": "CC0-1.0",
+      "start_seconds": 9,
+      "slice_seconds": 4,
+      "loop": true,
+      "modifications": "trim, mono, EQ, normalization, boundary fades",
+      "sha256": "e60b8876f0af807c069c28f17e17c979acf7f09d4b71689be42db413f12acae2"
+    },
+    {
+      "file": "bomb-release.ogg",
+      "source": "Metal Latch Latching Metallic",
+      "author": "deleted_user_7146007",
+      "url": "https://freesound.org/people/deleted_user_7146007/sounds/383807/",
+      "license": "CC0-1.0",
+      "start_seconds": 0.02,
+      "slice_seconds": 0.6,
+      "loop": false,
+      "modifications": "trim, mono, EQ, normalization, boundary fades",
+      "sha256": "2f5160de0551ac950ef307caef524112e4a499a2c5dc9ea30cc12fc670a829a2"
+    },
+    {
+      "file": "bomber.ogg",
+      "source": "Propeller plane",
+      "author": "Breviceps",
+      "url": "https://freesound.org/people/Breviceps/sounds/515293/",
+      "license": "CC0-1.0",
+      "start_seconds": 9,
+      "slice_seconds": 0.85,
+      "loop": false,
+      "modifications": "Derived from bomber-engine.ogg; afade=t=out:st=0.7:d=0.15",
+      "sha256": "3feffc1e57c56cbf70ff9e99897a742c1e5857f69543f7d75daa11ac38eb4c70"
+    },
+    {
+      "file": "spade.ogg",
+      "source": "Metal Latch Latching Metallic",
+      "author": "deleted_user_7146007",
+      "url": "https://freesound.org/people/deleted_user_7146007/sounds/383807/",
+      "license": "CC0-1.0",
+      "start_seconds": 0.02,
+      "slice_seconds": 0.9,
+      "loop": false,
+      "modifications": "Derived from bomb-release.ogg; asetrate=33075,aresample=44100,apad,afade=t=out:st=0.8:d=0.1",
+      "sha256": "175221e4f0609a6bd955e96f507364db1a40dc31989423992c0518e76da5828d"
+    },
+    {
+      "file": "artillery-heavy.ogg",
+      "source": "Cannon fire",
+      "author": "Thimras",
+      "url": "https://opengameart.org/content/cannon-fire",
+      "license": "CC0-1.0",
+      "start_seconds": 0,
+      "slice_seconds": 2.0,
+      "loop": false,
+      "modifications": "Derived from artillery.ogg; asetrate=33075,aresample=44100,bass=g=7:f=100,apad,alimiter=limit=0.9:level=false,afade=t=out:st=1.6:d=0.4",
+      "sha256": "5fb9d178fe43a41eb0b3e411b86f5e997eb30d7ae529e3fc12fa7711f3845464"
     }
   ]
 }

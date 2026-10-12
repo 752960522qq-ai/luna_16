@@ -17,3 +17,6 @@ web/public/
 web/.openai/
 
 *.partial.ogg
+
+/dist/
+/release-credentials/
