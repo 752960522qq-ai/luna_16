@@ -18,3 +18,5 @@ for(const kind of ['uav','missile'])for(const aspect of [390/844,320/568,768/102
 const model=(kind==='uav'?r.airModels.uav:r.projectileModels.tow).clone(true),pilot={kind,x:1000,y:100,z:1000,yaw,pitch};r.orient(model,pilot);const cam=new T.PerspectiveCamera(68,aspect,.04,8000),desired=new T.Vector3(),target=new T.Vector3();frameFlight(cam,model,pilot,B.direction(yaw,pitch),desired,target,()=>0);cam.position.copy(desired);cam.lookAt(target);cam.updateMatrixWorld();const fraction=flightCoverage(cam,model);assert.ok(fraction>=.3&&fraction<=.4,`${kind} ${aspect} ${yaw} ${pitch}: ${fraction}`);
 }
 console.log('PASS M53 stats and five crew; 1000m/711m/s coherent ballistic params; spade 24s, immobilization/retraction; ±30° turret; full wheel/belt/spade clone animation; both UAV blades; TOW orientation; 36 chase framing cases');
+
+const bank=await import('../app/src/main/assets/audio-bank.js');assert.equal(bank.AUDIO_CLIPS.length,20);assert.equal(bank.ENGINE_PROFILES.handlv_missile.clip,'engine-humvee');for(const id of Object.keys(B.VEHICLES))assert.ok(bank.AUDIO_CLIPS.includes(bank.ENGINE_PROFILES[id].clip));
