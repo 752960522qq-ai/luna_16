@@ -16,9 +16,13 @@ try{
     const copy=document.createElement('canvas');copy.width=copy.height=384;const ctx=copy.getContext('2d');ctx.drawImage(canvas,0,0);
     // Large fireball black corners must contribute no darkening. Alpha sprites
     // likewise leave the transparent corners as the scene background.
-    const center=Array.from(ctx.getImageData(192,192,1,1).data),corner=Array.from(ctx.getImageData(8,8,1,1).data);
-    if(corner.slice(0,3).some((v,i)=>Math.abs(v-[112,147,126][i])>2))throw Error('Opaque/background rectangle: '+size);
-    if(center.slice(0,3).every((v,i)=>Math.abs(v-corner[i])<2)&&progress<.5)throw Error('Explosion invisible: '+size);
+    const edge=Math.ceil(192-spec.diameter/(120*Math.tan(Math.PI/8))*384/2)+2;
+    const corner=Array.from(ctx.getImageData(edge,edge,1,1).data),pixels=ctx.getImageData(0,0,384,384).data;let changed=0;
+    if(corner.slice(0,3).some((v,i)=>Math.abs(v-[112,147,126][i])>2))throw Error('Opaque/background rectangle inside effect quad: '+size);
+    // The supplied smoky plume starts below its canvas centre and rises;
+    // inspect the rendered footprint rather than a fixed centre pixel.
+    for(let i=0;i<pixels.length;i+=4)if(Math.abs(pixels[i]-112)>3||Math.abs(pixels[i+1]-147)>3||Math.abs(pixels[i+2]-126)>3)changed++;
+    if(changed<10&&progress<.5)throw Error('Explosion invisible: '+size);
     frames.push(a.userData.explosion.frame);images.push({name:size+'-'+progress+'.png',image:copy.toDataURL()});
    }
    if(b.userData.explosion.frame!==0||a.material.map!==b.material.map)throw Error('Shared atlas instances interfered');
