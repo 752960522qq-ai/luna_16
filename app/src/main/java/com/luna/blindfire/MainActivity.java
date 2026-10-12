@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return !url.equals(ORIGIN + "index.html") && !url.startsWith(ORIGIN + "index.html?"); }
         });
         game.addJavascriptInterface(new Bridge(), "Native");
-        setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.FULL_UNLOCK_TEST ? "?fullUnlockTest=1" : ""));
+        setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.FULL_UNLOCK_TEST ? "?fullUnlockTest=1" : BuildConfig.INFINITE_COINS ? "?infiniteCoins=1" : ""));
     }
     private LanLink createLink(final int generation, final String code) {
         return new LanLink(new LanLink.Listener() {

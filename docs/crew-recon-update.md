@@ -16,3 +16,5 @@
 验证工作流 `Gameplay and visual validation (no packages)` 仅运行规则、音效资产、模型和浏览器检查，输出验收截图；无 Gradle、APK 或 H5 打包步骤。
 
 字体重新从 Noto Sans SC 原字库提取当前源码所有中文字形，防止车型名/乘员/研发标签缺字。
+
+合并主线时保留旧 `infiniteCoins` 构建选项及 `com.luna.blindfire.infinite` 数据空间，同时保留 `fullUnlockTest` 独立测试版；正常版默认关闭两者。
