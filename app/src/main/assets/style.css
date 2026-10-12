@@ -80,3 +80,5 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 .zone-status{top:234px;left:auto;right:20px;transform:none;width:114px;font-size:10px;line-height:1.4;padding:5px 7px}.h5-portrait .zone-status{margin-top:env(safe-area-inset-top)}@media(max-height:720px){.zone-status{top:204px}}
 
 .conceal-status{left:20px;right:auto;top:234px}@media(max-height:720px){.conceal-status{top:204px}}
+
+.flight-info{top:38%;bottom:auto}.event-line{top:calc(38% + 88px);bottom:auto}
