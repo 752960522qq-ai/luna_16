@@ -1,0 +1,3 @@
+UAV: user attachment uav.glb, Library libfile_d15994f3e4988191a8ed7a18016cbcad; 512px WebP textures and Meshopt; span 2m; nose -Z; original provenance supplied by user.
+TOW: user attachment bgm-71_tow.glb, Library libfile_d48bc84ab7f881918a58131c4a761721; extracted separately displayed assembled missile Object_3/5/8/10/12/13, excluded launcher/cutaway; length 1.17m; source nose +Z, runtime rotated to -Z.
+Panzer II grey: previously supplied pz_ii_ausf.f_kuromoremine_girls_und_panzer.glb; this update removes duplicated Cupula/Support Cupula meshes and repaints Torreta/Turret_Armor as neutral grey, retaining existing complete wheel/tread rig.

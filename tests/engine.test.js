@@ -3,7 +3,7 @@ const {Engine,vehicleSpec,artilleryParams,C,W,H,RECON_RANGE,RECON_RANGES,INTEL_L
 let passed=0;
 function test(name,fn){fn();passed++;console.log('PASS',name);}
 // Full-loadout fixture exercises the reserved artillery implementation for future vehicles.
-function setup(opts={}){const e=new Engine({seed:42,mode:'lan',vehicles:['handlv_missile','handlv_missile'],countdown:0,...opts});for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}for(const p of e.players)p.weapons.push('artillery');return e;}
+function setup(opts={}){const e=new Engine({seed:42,mode:'lan',mapId:'city',vehicles:['handlv_missile','handlv_missile'],countdown:0,...opts});e.randomCrew=()=>1;const field=require('../app/src/main/assets/engine.js');field.BUILDINGS.length=0;field.TREES.length=0;field.TREE_CELLS.clear();field.BUSHES.length=0;for(const[p,x,z]of[[e.players[0],400,1030],[e.players[1],630,120]]){Object.assign(p,{x,z,y:terrain(x,z),yaw:0});for(const a of Object.values(p.aim))a.yaw=0;}for(const p of e.players)p.weapons.push('artillery');return e;}
 function tick(e,time){for(let t=0;t<time-1e-8;t+=1/120)e.update(Math.min(1/120,time-t));}
 function weapon(e,id,k,yaw=0,pitch=.24){assert.equal(e.command(id,{type:'vehicle'}).ok,true);assert.equal(e.command(id,{type:'select',weapon:k}).ok,true);assert.equal(e.command(id,{type:'aim',yaw,pitch}).ok,true);}
 function target(e,position){weapon(e,1,'uav',0,.1);const r=e.command(1,{type:'fire'});const s=e.shots.find(s=>s.id===r.id);Object.assign(s,position,{speed:0});return s;}

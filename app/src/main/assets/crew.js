@@ -1,0 +1,13 @@
+/* Host-owned crew members. One survivor occupies one station; priority is gunner, driver. */
+(function(root){'use strict';
+ const ROLES=Object.freeze({commander:'车长',gunner:'炮长',loader:'二炮手',driver:'驾驶员',radio:'无线电员'});
+ const CONFIG=Object.freeze({handlv_missile:['driver','gunner','loader'],longnose_artillery:['commander','driver','gunner','loader','radio'],hero_tank:['commander','gunner','driver','loader'],b_tank:['commander','gunner','driver'],kfz_artillery:['commander','gunner','loader','driver'],black_turtle:['commander','driver','gunner','loader']});
+ const MAIN=new Set(['missile','artillery','tankCannon','autocannon']);
+ function create(id){return(CONFIG[id]||CONFIG.handlv_missile).map((role,id)=>({id,original:role,role,alive:true}));}
+ function has(crew,role){return !crew||crew.some(m=>m.alive&&m.role===role);}
+ function modifiers(crew){const existed=role=>crew?.some(m=>m.original===role),missing=role=>existed(role)&&!has(crew,role),command=missing('commander'),radio=missing('radio');return{speed:command?.9:1,recon:(command?.9:1)*(radio?.8:1),intel:(command?.9:1)*(radio?.8:1),cooldown:command?1.1:1,mainCooldown:missing('loader')?1.3:1,drive:has(crew,'driver'),main:has(crew,'gunner'),alive:crew?crew.filter(m=>m.alive).length:Infinity};}
+ function reassign(crew){const moves=[];for(const role of ['gunner','driver']){if(has(crew,role))continue;const donor=['loader','radio','commander'].map(station=>crew.find(m=>m.alive&&m.role===station)).find(Boolean);if(donor){moves.push({from:donor.role,to:role,id:donor.id});donor.role=role;}}return moves;}
+ function wound(crew,fraction,random){const live=crew.filter(m=>m.alive);if(!live.length||random()>=Math.max(0,Math.min(1,fraction)))return null;const member=live[Math.min(live.length-1,Math.floor(random()*live.length))];member.alive=false;return{member:{...member},moves:reassign(crew),destroyed:crew.filter(m=>m.alive).length<2};}
+ function cooldown(crew,kind){const m=modifiers(crew);return m.cooldown*(MAIN.has(kind)?m.mainCooldown:1);}
+ const api={ROLES,CONFIG,MAIN,create,has,modifiers,reassign,wound,cooldown};if(typeof module!=='undefined'&&module.exports)module.exports=api;root.BlindfireCrew=api;
+})(typeof window!=='undefined'?window:globalThis);

@@ -128,7 +128,7 @@ function articulateGreyTank(raw){
  for(const p of parts){let parent=scene;
   if(/^Track(?:_|\d)/.test(p.name)){const b=greyTrackSurface(scene,p.geo,p.material);b.side=b.side==='left'?'right':'left';b.travelSign=-1;tracks.belts.push(b);continue;}
   if(/^(Wheel(?:_Wheels|\d+_Wheels)|Micro_Wheel|Rear_Wheel|Sprocket(?:_|\d))/.test(p.name)){const pivot=new THREE.Group();pivot.position.copy(p.center);pivot.name='tankRollingWheel';scene.add(pivot);const size=p.geo.boundingBox.getSize(new THREE.Vector3());wheels.push({pivot,side:p.center.x<0?'right':'left',radius:Math.max(size.y,size.z)/2,axis:'x',axisSign:-1});parent=pivot;}
-  else if(/^(20_mm|MG_Guns)/.test(p.name))parent=barrel;
+  else if(/^(20_mm|MG_Guns|Mantelete)/.test(p.name))parent=barrel;
   else if(/^(Turret|Cupula|Commander_View|Support_Cupula|Gunner_Sights|MG_Sights|Nech_Shield)/.test(p.name))parent=turret;
   collect(parent,p);
  }

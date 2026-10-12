@@ -1,0 +1,5 @@
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+qubodup Tank Engine Loop.flac (CC BY 4.0) and Lucas Del Piero Engine-loop heavy vehicle/tank (CC BY 3.0) edited as specified in SOURCES.json. Other authors and source URLs are listed for each clip.

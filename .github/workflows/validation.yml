@@ -1,0 +1,43 @@
+name: Gameplay and visual validation (no packages)
+on:
+  push:
+    branches: ['feature/crew-recon-update']
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Gameplay rules
+        run: |
+          node tests/crew-recon-update.test.cjs
+          node tests/engine.test.js
+          node tests/garage.test.cjs
+          node tests/artillery-expansion.test.cjs
+          node tests/dark-forest.test.cjs
+          node tests/tier-progression.test.cjs
+          node tests/second-tier.test.cjs
+          node tests/kfz-air-support.test.cjs
+          python3 tests/models.test.py
+          python3 tests/audio-assets.test.py
+          python3 tests/combat-model-assets.test.py
+      - name: Rendered models and browser behavior
+        run: |
+          node tests/renderer-air-support.test.mjs
+          npm install --no-save playwright
+          export CHROMIUM_EXECUTABLE="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROMIUM_EXECUTABLE" ]; then
+            npx playwright install --with-deps chromium
+            unset CHROMIUM_EXECUTABLE
+          fi
+          SOFTWARE_GL=1 node tests/combat-update-browser.test.cjs
+          SOFTWARE_GL=1 node tests/tread-webgl.test.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: combat-update-render-validation
+          path: test-output/
+          retention-days: 30
