@@ -3,7 +3,7 @@
   'use strict';
   const Crew=typeof module!=='undefined'&&module.exports?require('./crew.js'):root.BlindfireCrew,Motion=typeof module!=='undefined'&&module.exports?require('./vehicle-motion.js'):root.BlindfireMotion,Recon=typeof module!=='undefined'&&module.exports?require('./reconnaissance.js'):root.BlindfireRecon;
   const V1_MODELS=typeof module!=='undefined'&&module.exports?require('./v1-model-data.js'):root.BlindfireV1Models;
-  const vehicleDefinition=spec=>Object.freeze({...spec,...Motion.CONFIG[spec.id],crewRoles:Object.freeze([...Crew.CONFIG[spec.id]])});
+  const vehicleDefinition=spec=>Object.freeze({communicationRange:500,...spec,...Motion.CONFIG[spec.id],crewRoles:Object.freeze([...Crew.CONFIG[spec.id]])});
   const W = 2000, H = 2000, RECON_RANGE = 300, INTEL_LIFE = 5, TAU = Math.PI * 2, GRAVITY = 34, ARTILLERY_RANGE = 1200, SHELL_SPEED = Math.sqrt(GRAVITY * ARTILLERY_RANGE), TRAIL_LIFE = 8, ORBIT_RADIUS = 50;
   const RECON_RANGES = Object.freeze({vehicle:300,uav:400,missile:200,reconPlane:500,bomber:250});
   const reconRange = kind => RECON_RANGES[kind] || RECON_RANGES.vehicle;
@@ -129,22 +129,8 @@
   function clearGround(x, z, radius = 5) {
     return !inLake(x,z) && x >= 18 && x <= W - 18 && z >= 18 && z <= H - 18 && !BUILDINGS.some(b => Math.abs(x - b.x) < b.w / 2 + radius && Math.abs(z - b.z) < b.d / 2 + radius) && !TREES.some(t=>Math.hypot(t.x-x,t.z-z)<t.radius+radius);
   }
-  function vehicleClear(x,z,p){
-    const spec=vehicleSpec(p.vehicleId),d=spec.dimensions,hw=d.width/2,hl=d.length/2,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;x+=s*offset;z-=c*offset;
-    const ex=Math.abs(c)*hw+Math.abs(s)*hl,ez=Math.abs(s)*hw+Math.abs(c)*hl;
-    if(x-ex<18||x+ex>W-18||z-ez<18||z+ez>H-18)return false;
-    for(const b of BUILDINGS){
-      const dx=b.x-x,dz=b.z-z;
-      if(Math.abs(dx)<ex+b.w/2&&Math.abs(dz)<ez+b.d/2&&
-        Math.abs(c*dx+s*dz)<hw+Math.abs(c)*b.w/2+Math.abs(s)*b.d/2&&
-        Math.abs(s*dx-c*dz)<hl+Math.abs(s)*b.w/2+Math.abs(c)*b.d/2)return false;
-    }
-    for(const t of TREES){const dx=t.x-x,dz=t.z-z,lx=c*dx+s*dz,lz=s*dx-c*dz;
-      if(Math.hypot(Math.max(0,Math.abs(lx)-hw),Math.max(0,Math.abs(lz)-hl))<t.radius)return false;
-    }
-    for(const sx of[-1,0,1])for(const sz of[-1,0,1])if(inLake(x+c*hw*sx+s*hl*sz,z+s*hw*sx-c*hl*sz))return false;
-    return true;
-  }
+  const Collision=typeof module!=='undefined'&&module.exports?require('./vehicle-collision.js'):root.BlindfireCollision;
+  const vehicleClear=Collision.create({vehicleSpec,BUILDINGS,TREES,W,H,inLake,lakeOverlap:(x,z,ex,ez)=>mapId==='city'&&Math.abs(x-LAKE.x)<=LAKE.rx+ex&&Math.abs(z-LAKE.z)<=LAKE.rz+ez});
 
   function vehicleHit(a,b,p,impact=false){
     const spec=vehicleSpec(p.vehicleId),d=spec.dimensions,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;
@@ -159,7 +145,7 @@
     }
     return impact?{x:a.x+(b.x-a.x)*enter,y:a.y+(b.y-a.y)*enter,z:a.z+(b.z-a.z)*enter}:true;
   }
-  function buildingBlocks(a,b,box){const start=[a.x,a.y,a.z],end=[b.x,b.y,b.z],y=box.baseY??terrain(box.x,box.z),lo=[box.x-box.w/2,y,box.z-box.d/2],hi=[box.x+box.w/2,y+box.h,box.z+box.d/2];let enter=0,exit=1;for(let i=0;i<3;i++){const delta=end[i]-start[i];if(Math.abs(delta)<1e-9){if(start[i]<lo[i]||start[i]>hi[i])return false;}else{const f=(lo[i]-start[i])/delta,g=(hi[i]-start[i])/delta;enter=Math.max(enter,Math.min(f,g));exit=Math.min(exit,Math.max(f,g));if(enter>exit)return false;}}return exit>1e-5&&enter<.99999;}
+  function buildingBlocks(a,b,box){if(Math.max(a.x,b.x)<box.x-box.w/2||Math.min(a.x,b.x)>box.x+box.w/2||Math.max(a.z,b.z)<box.z-box.d/2||Math.min(a.z,b.z)>box.z+box.d/2)return false;const start=[a.x,a.y,a.z],end=[b.x,b.y,b.z],y=box.baseY??terrain(box.x,box.z),lo=[box.x-box.w/2,y,box.z-box.d/2],hi=[box.x+box.w/2,y+box.h,box.z+box.d/2];let enter=0,exit=1;for(let i=0;i<3;i++){const delta=end[i]-start[i];if(Math.abs(delta)<1e-9){if(start[i]<lo[i]||start[i]>hi[i])return false;}else{const f=(lo[i]-start[i])/delta,g=(hi[i]-start[i])/delta;enter=Math.max(enter,Math.min(f,g));exit=Math.min(exit,Math.max(f,g));if(enter>exit)return false;}}return exit>1e-5&&enter<.99999;}
   function lineOfSight(a, b) {
     if(BUILDINGS.some(box=>buildingBlocks(a,b,box)))return false;
     if(treeHit(a,b))return false;
@@ -419,7 +405,8 @@
       const yaw=Math.atan2(x-s.x,s.z-z),pitch=Math.atan2(y-s.y,Math.hypot(x-s.x,z-s.z));
       s.yaw=wrap(s.yaw+clamp(wrap(yaw-s.yaw),-3.4*dt,3.4*dt));s.pitch+=clamp(pitch-s.pitch,-3.4*dt,3.4*dt);
     }
-    reconDetection(id,target,crewOnly=false){const p=this.players[id];if(!p||p.hp<=0)return null;const mods=Crew.modifiers(p.crew),cap=Recon.hidden(target,BUSHES,this.t)?50:Infinity;
+    reconDetection(id,target,crewOnly=false){if(this.reconPassCache){const key=id+':'+target.id+':'+target.x+':'+target.y+':'+target.z+':'+(target.vehicleId||target.kind||'')+':'+crewOnly;if(this.reconPassCache.has(key))return this.reconPassCache.get(key);const result=this.detectRecon(id,target,crewOnly);this.reconPassCache.set(key,result);return result;}return this.detectRecon(id,target,crewOnly);}
+    detectRecon(id,target,crewOnly=false){const p=this.players[id];if(!p||p.hp<=0)return null;const mods=Crew.modifiers(p.crew),cap=Recon.hidden(target,BUSHES,this.t)?50:Infinity;
       const visible=(sensor,range,flat=false)=>(flat?dist(sensor,target):dist3(sensor,target))<=Math.min(range,cap)&&lineOfSight(sensor,target);let found=null;
       const accept=(source,life)=>{const retain=life*mods.intel;if(!found||retain>found.retain)found={source,retain};},eye={x:p.x,y:p.y+4,z:p.z};
       if(p.observationUntil>this.t&&Math.abs(wrap(Math.atan2(target.x-p.x,p.z-target.z)-p.observationYaw))<=Math.PI/4&&visible(eye,500*mods.recon))accept('observation',vehicleSpec(p.vehicleId).intelLife);
@@ -512,7 +499,7 @@
         }
       }
       if(this.battleMode==='dark_forest')this.updateZone(dt);
-      this.removeDead(); this.updateIntel();
+      this.removeDead(); if(this.battleMode!=='dark_forest'||this.t>=(this.nextIntelAt||0)){this.updateIntel();this.nextIntelAt=this.t+.1;}
       if (this.battleMode==='duel' && !this.over && this.t - this.countdown >= this.limit) {
         const [a, b] = this.players; this.finish(a.hp === b.hp ? null : a.hp > b.hp ? 0 : 1, '交火时间结束');
       }
@@ -578,7 +565,7 @@
       for(const p of this.players){const id=p.id;if(id===s.owner||p.hp<=0||s.kind==='bullet'||s.distance<65||s.noticed&1<<id||!this.observable(id,s))continue;
         s.noticed|=1<<id;p.intel.clues.push({id:++this.id,kind:'direction',x:s.x,z:s.z,yaw:wrap(s.yaw+Math.PI),radius:500,spread:.32,until:this.t+15});if(p.intel.clues.length>5)p.intel.clues.shift();this.note(id,'发现白色尾迹 · 反向观察发射方向','warning');}
     }
-    updateIntel(){for(const target of this.players)Recon.update(target,BUSHES,this.t);for(const p of this.players){
+    updateIntel(){this.reconPassCache=new Map();for(const target of this.players)Recon.update(target,BUSHES,this.t);for(const p of this.players){
       const contacts=new Set(),air=new Set();
       for(const foe of this.players)if(this.isEnemy(p.id,foe.id)&&foe.hp>0&&this.inReconRange(p.id,{...foe,y:foe.y+4},true)){contacts.add(foe.id);if(!p.voiceContacts.has(foe.id)){const distance=dist(p,foe);if(distance<=1000)this.crewVoice(p.id,'spotted',{targetKind:vehicleSpec(foe.vehicleId).branch,clock:(Math.round(wrap(Math.atan2(foe.x-p.x,p.z-foe.z)-p.yaw)/(Math.PI/6))+12)%12||12,distance});}}
       for(const shot of this.shots)if(this.isEnemy(p.id,shot.owner)&&shot.hp>0&&['uav','reconPlane','bomber'].includes(shot.kind)&&this.inReconRange(p.id,shot,true)){air.add(shot.id);if(!p.voiceAir.has(shot.id)&&dist(p,shot)<=1000)this.crewVoice(p.id,'air',{targetKind:shot.kind});}
@@ -592,7 +579,7 @@
       for(const c of p.intel.air.values())c.visible=false;
       for(const s of this.shots)if(this.isEnemy(p.id,s.owner)&&s.kind!=='bullet'&&(air.has(s.id)||this.inReconRange(p.id,s)))p.intel.air.set(s.id,{id:s.id,kind:s.kind,model:s.model||(s.kind==='missile'?'tow':null),x:s.x,y:s.y,z:s.z,yaw:s.yaw,pitch:s.pitch,speed:s.speed,bombs:s.bombs,t:this.t,life:this.sensorIntelLife(p.id,s),visible:true});
       for(const [id,c]of p.intel.air)if(this.t-c.t>=(c.life??intelLife(p)))p.intel.air.delete(id);
-    }}
+    }this.reconPassCache=null;}
     checkSurvivor(){const alive=this.players.filter(p=>p.hp>0);if(alive.length===1)this.finish(alive[0].id,'黑暗森林 · 最后一辆载具存活');else if(!alive.length)this.finish(null,'所有载具被摧毁');}
     updateZone(dt){const elapsed=this.t-this.countdown,stage=Math.min(5,Math.floor((elapsed+1e-7)/60)),radii=[Math.hypot(W,H)/2+1,1000,750,500,250,0];this.zone={x:W/2,z:H/2,radius:radii[stage],stage,next:Math.min(300,(stage+1)*60),damageRate:.02};
       const victims=[];for(const p of this.players){if(p.hp<=0)continue;if(stage===5||dist(p,this.zone)>this.zone.radius){p.gasClock=(p.gasClock||0)+dt;const ticks=Math.floor(p.gasClock+1e-8);if(ticks){p.gasClock-=ticks;victims.push({p,damage:Math.round(p.maxHp*.02)*ticks});}}else p.gasClock=0;}
@@ -606,8 +593,8 @@
       else if(this.evadeUAV(dt)){if(p.spadeDeployed){p.spadeDeployed=false;p.cd.artillery*=1.25;this.sound('spade',p,p.id);}}else if(p.vehicleId==='annihilator_fv')this.fvAI(dt);else if(this.hasWeapon(p,'autocannon')||this.hasWeapon(p,'tankCannon'))this.tankAI(dt);else if(p.vehicleId==='cougar_artillery')this.cougarAI(dt);else if(vehicleSpec(p.vehicleId).hullAim)this.kfzAI(dt);else this.updateAI(dt);
       for(const key of Object.keys(state))state[key]=this[key];
     }this.aiId=1;}
-    driveToward(p,goal){if(p.spadeDeployed){p.spadeDeployed=false;p.cd.artillery*=1.25;this.sound('spade',p,p.id);}let desired=Math.atan2(goal.x-p.x,p.z-goal.z),yaw=desired,best=-Infinity;
-      for(const offset of [0,.45,-.45,.9,-.9,1.5,-1.5,Math.PI]){const a=desired+offset,q={x:p.x+Math.sin(a)*14,z:p.z-Math.cos(a)*14};if(!vehicleClear(q.x,q.z,{...p,yaw:a}))continue;const score=-dist(q,goal)-Math.abs(wrap(a-p.yaw))*2;if(score>best){best=score;yaw=a;}}
+    driveToward(p,goal){if(p.spadeDeployed){p.spadeDeployed=false;p.cd.artillery*=1.25;this.sound('spade',p,p.id);}let desired=Math.atan2(goal.x-p.x,p.z-goal.z),yaw=desired,best=-Infinity;const cache=p.driveHeading;if(cache&&this.t-cache.t<.1&&dist(p,cache)<2&&dist(goal,cache.goal)<8){yaw=cache.yaw;}else{
+      for(const offset of [0,.45,-.45,.9,-.9,1.5,-1.5,Math.PI]){const a=desired+offset,q={x:p.x+Math.sin(a)*14,z:p.z-Math.cos(a)*14};if(!vehicleClear(q.x,q.z,{...p,yaw:a}))continue;const score=-dist(q,goal)-Math.abs(wrap(a-p.yaw))*2;if(score>best){best=score;yaw=a;}}p.driveHeading={x:p.x,z:p.z,t:this.t,yaw,goal:{x:goal.x,z:goal.z}};}
       const error=wrap(yaw-p.yaw);p.drive={throttle:Math.abs(error)>1.5?.35:1,steer:clamp(error*1.8,-1,1)};
     }
     finish(winner, reason) { if (this.over) return; this.over = true; this.winner = winner; this.reason = reason; for(const p of this.players)if(winner!==null)this.crewVoice(p.id,winner===p.id?'win':'loss'); for (const p of this.players) { p.mg = false; p.drive = { throttle: 0, steer: 0 }; } }

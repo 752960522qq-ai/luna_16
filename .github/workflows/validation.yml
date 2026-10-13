@@ -18,6 +18,8 @@ jobs:
           node tests/october-gameplay.test.mjs
           node tests/v1-gameplay.test.cjs
           node tests/breakthrough.test.cjs
+          node tests/team-recon.test.cjs
+          node tests/forest-performance.test.cjs
           node tests/crew-voice.test.mjs
           node tests/cougar-update.test.mjs
           node tests/explosion-effects.test.mjs
