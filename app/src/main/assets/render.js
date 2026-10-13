@@ -141,7 +141,7 @@ export class Renderer{
   createLandscape(preserve=false){
     if(this.landscape){this.landscape.traverse(o=>{o.geometry?.dispose();});this.scene.remove(this.landscape);}
     this.landscape=new THREE.Group();this.landscape.name='battleLandscape';this.scene.add(this.landscape);
-    if(!preserve)this.landscapeMap=B.configureMap(this.landscapeMap||'hills');
+    if(!preserve)this.landscapeMap=B.configureMap(this.landscapeMap||'hills',this.landscapeSize||2000);
     const geo=new THREE.PlaneGeometry(B.W+1000,B.H+1000,140,140);geo.rotateX(-Math.PI/2);geo.translate(B.W/2,0,B.H/2);const pos=geo.attributes.position,colors=[];
     const city=this.landscapeMap==='city',green=new THREE.Color(city?'#85898c':'#82896a'),sand=new THREE.Color(city?'#a0a2a3':'#b6a784'),rock=new THREE.Color(city?'#72777b':'#9b9581');this.scene.background.set(city?'#bfc4c8':'#b8cbd0');this.normalFog=new THREE.Fog(city?'#bfc4c8':'#b8c5ba',230,2400);
     for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),h=B.terrain(x,z);pos.setY(i,h);const color=green.clone().lerp(sand,Math.min(1,.18+.32*(Math.sin(x*.04+z*.014)+1))).lerp(rock,B.clamp((h-16)/35,0,.65));const jitter=.93+.07*Math.sin(x*2+z*1.3);colors.push(color.r*jitter,color.g*jitter,color.b*jitter);}
@@ -176,7 +176,7 @@ export class Renderer{
       if(g.userData.barrel)g.userData.barrel.rotation.x=g.userData.mainGun||g.userData.launcherAxis?g.userData.barrelSign*(a.pitch-B.gunRestPitch(g.userData.vehicleId)):(['artillery','autocannon'].includes(selected)||g.userData.vehicleId==='b_tank')?(g.userData.vehicleId==='b_tank'?-(a.pitch-B.gunRestPitch(g.userData.vehicleId)):a.pitch-B.gunRestPitch(g.userData.vehicleId)):0;
       if(g.userData.tracks&&g.userData.lastTravel!==`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`){(g.userData.tracks.belts?rollBelts:rollTracks)(g.userData.tracks,g.userData.tracks.belts?(p.trackTravel||p.wheelTravel||0):(p.wheelTravel||0));g.userData.lastTravel=`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`;}
       return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels||[])w.rotation.x=-(p.wheelTravel||0)/1.65;}
-  draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&view.field.mapId!==this.landscapeMap)this.setMap(view.field.mapId);const demo=!view;
+  draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&(view.field.mapId!==this.landscapeMap||view.field.width!==this.landscapeSize))this.setMap(view.field.mapId,view.field.width);const demo=!view;
     const p=view?view.own:{vehicleId:this.menuVehicle||B.DEFAULT_VEHICLE,x:195,y:B.terrain(195,935),z:935,yaw:.62,speed:0,aim:Object.fromEntries(Object.keys(B.C).map(k=>[k,{yaw:.62,pitch:.35}])),selected:'missile',pilot:null};
     this.switchVehicle(this.ownTruck,0,p.vehicleId||B.DEFAULT_VEHICLE);this.updateTruck(this.ownTruck,p,p.selected,t);this.shadows[0].position.set(p.x,p.y+.15,p.z);this.shadows[0].rotation.z=p.yaw;const footprint=B.vehicleSpec(p.vehicleId).dimensions,offset=B.vehicleSpec(p.vehicleId).collisionOffset||0;this.shadows[0].position.x+=Math.sin(p.yaw)*offset;this.shadows[0].position.z-=Math.cos(p.yaw)*offset;this.shadows[0].scale.set(footprint.width/2,footprint.length/2,1);
     this.enemyTruck.visible=false;this.enemyMarker.visible=false;this.shadows[1].visible=false;
@@ -230,7 +230,7 @@ export class Renderer{
     if(view){if(this.miniDrawAt===undefined||t-this.miniDrawAt>=.1||t<this.miniDrawAt){this.drawMini(view);this.miniDrawAt=t;}this.updateReticle(p,pilot);this.drawScope(p,this.lastArc);}
   }
   artilleryPreview(p){const a=p.aim.artillery,key=`${this.landscapeMap}:${p.vehicleId}:${p.x}:${p.y}:${p.z}:${a.yaw}:${a.pitch}`;if(this.arcCacheKey!==key){this.arcCacheKey=key;this.arcCache=B.ballistic(p);}return this.arcCache;}
-  setMap(id){if(this.landscapeMap===id)return;this.landscapeMap=id;B.configureMap(id);this.createLandscape();this.mapCenter=null;this.cameraKey=null;}
+  setMap(id,size=2000){if(this.landscapeMap===id&&this.landscapeSize===size)return;this.landscapeMap=id;this.landscapeSize=size;B.configureMap(id,size);this.createLandscape();this.mapCenter=null;this.cameraKey=null;}
   panMap(dx,dy){this.mapCenter||={x:1000,z:1000};const span=2*(this.mapHeight||800)*Math.tan(Math.PI*29/180)/innerHeight;this.mapCenter.x=B.clamp(this.mapCenter.x-dx*span,0,B.W);this.mapCenter.z=B.clamp(this.mapCenter.z-dy*span,0,B.H);}
   zoomMap(f){this.mapHeight=B.clamp((this.mapHeight||800)*f,140,2600);}
   showPreview(canvas,id){
@@ -243,14 +243,15 @@ export class Renderer{
   hidePreview(){if(this.preview){this.preview.gl.dispose();this.preview=null;}}
   mapTarget(x,y){const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(x/innerWidth*2-1,1-y/innerHeight*2),this.camera);return ray.intersectObject(this.landscape,true)[0]?.point||null;}
   drawEnemyDots(v){
-    if(this.gunSight&&canUseGunSight(v.own))return;
     const container=document.getElementById('enemyDots'),nodes=this.enemyDotNodes||=new Map(),seen=new Set();
     const world=this.dotWorld||=new THREE.Vector3(),q=this.dotProjection||=new THREE.Vector3(),local=this.dotLocal||=new THREE.Vector3();
-    const show=(e,key)=>{seen.add(key);world.set(e.x,e.y+5,e.z);q.copy(world).project(this.camera);local.copy(world).applyMatrix4(this.camera.matrixWorldInverse);const behind=local.z>0;let x=q.x,y=-q.y;
+    const show=(e,key,friendly=false)=>{world.set(e.x,e.y+5,e.z);q.copy(world).project(this.camera);local.copy(world).applyMatrix4(this.camera.matrixWorldInverse);const behind=local.z>0;let x=q.x,y=-q.y;
+      if(friendly&&(behind||q.z>1||q.z< -1||Math.abs(x)>1||Math.abs(y)>1))return;seen.add(key);
       if(behind){x=-x;y=-y;}const outside=behind||Math.abs(x)>.92||Math.abs(y)>.8;
       if(outside){if(Math.abs(x)+Math.abs(y)<.001)y=.8;const f=Math.max(Math.abs(x)/.92,Math.abs(y)/.8,.001);x/=f;y/=f;}
-      let dot=nodes.get(key);if(!dot){dot=document.createElement('span');dot.className='enemy-dot';nodes.set(key,dot);container.appendChild(dot);}dot.dataset.edge=String(outside);dot.style.left=`${(x*.5+.5)*100}%`;dot.style.top=`${(y*.5+.5)*100}%`;
+      let dot=nodes.get(key);if(!dot){dot=document.createElement('span');dot.className=friendly?'enemy-dot ally-dot':'enemy-dot';nodes.set(key,dot);container.appendChild(dot);}dot.dataset.edge=String(outside);dot.style.left=`${(x*.5+.5)*100}%`;dot.style.top=`${(y*.5+.5)*100}%`;
     };
+    for(const ally of v.allies||[])if(B.dist(v.own,ally)<=Math.min(B.vehicleSpec(v.own.vehicleId).communicationRange,B.vehicleSpec(ally.vehicleId).communicationRange))show(ally,'ally:'+ally.id,true);
     for(const e of v.enemies||[v.enemy].filter(Boolean))show(e,'vehicle:'+e.id);
     for(const e of v.shots)if(!e.mine&&e.kind!=='bullet'&&!e.visualOnly)show(e,'shot:'+e.id);
     for(const [key,dot]of nodes)if(!seen.has(key)){dot.remove();nodes.delete(key);}

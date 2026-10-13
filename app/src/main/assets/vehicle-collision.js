@@ -1,9 +1,9 @@
 /* Oriented ground collision: broad-phase rejection before exact footprint tests. */
 (function(root){
  'use strict';
- function create({vehicleSpec,BUILDINGS,TREES,W,H,inLake,lakeOverlap}){
+ function create({vehicleSpec,BUILDINGS,TREES,bounds,inLake,lakeOverlap}){
   return function vehicleClear(x,z,p){
-    const spec=vehicleSpec(p.vehicleId),d=spec.dimensions,hw=d.width/2,hl=d.length/2,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;x+=s*offset;z-=c*offset;
+    const {W,H}=bounds(),spec=vehicleSpec(p.vehicleId),d=spec.dimensions,hw=d.width/2,hl=d.length/2,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;x+=s*offset;z-=c*offset;
     const ex=Math.abs(c)*hw+Math.abs(s)*hl,ez=Math.abs(s)*hw+Math.abs(c)*hl;
     if(x-ex<18||x+ex>W-18||z-ez<18||z+ez>H-18)return false;
     for(const b of BUILDINGS){

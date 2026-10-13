@@ -5,7 +5,7 @@ for(let i=0;i<8;i++)Object.assign(e.players[i],{x:1000,z:1000+i*20,y:2});e.updat
 // Killing a third participant must leave the free-for-all running.
 e.damage(e.players[3],2,1000);assert.equal(e.players[3].hp,0);assert.equal(e.over,false);assert.equal(e.command(3,{type:'fire'}).ok,false);assert.equal(e.players[2].stats.damage,170);
 for(const p of e.players)Object.assign(p,{x:1000,z:1000,y:2});e.players[0].x=100;e.players[0].z=100;
-for(const [time,radius]of [[59,Math.hypot(2000,2000)/2+1],[60,1000],[120,750],[180,500],[240,250],[300,0]]){e.t=time;e.updateZone(1);assert.equal(e.zone.radius,radius);}assert.ok(e.players[0].hp<170);assert.ok(e.players[1].hp<170); // full-map gas bypasses armor immunity
+for(const [time,radius]of [[59,Math.hypot(2500,2500)/2+1],[60,1250],[120,937.5],[180,625],[240,312.5],[300,0]]){e.t=time;e.updateZone(1);assert.equal(e.zone.radius,radius);}assert.ok(e.players[0].hp<170);assert.ok(e.players[1].hp<170); // full-map gas bypasses armor immunity
 // Ordinary projectiles sweep all enemies, including owner IDs greater than 1.
 e=new B.Engine({mode:'lan',battleMode:'dark_forest',mapId:'city',countdown:0,seed:11,vehicles:Array(8).fill('b_tank')});for(const p of e.players)Object.assign(p,{x:1800,z:1800,y:2});Object.assign(e.players[4],{x:1000,z:1000,y:2});Object.assign(e.players[6],{x:1000,z:990,y:2});e.players[4].aim.autocannon={yaw:0,pitch:0};e.launch(e.players[4],'autocannon');e.update(.02);assert.equal(e.players[6].hp,153);
 for(const p of e.players)if(p.id!==4)e.damage(p,4,1000);assert.equal(e.winner,4);assert.equal(e.snapshot(4).outcome,'win');assert.equal(e.snapshot(0).outcome,'loss');

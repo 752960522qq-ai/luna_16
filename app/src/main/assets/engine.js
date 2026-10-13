@@ -4,7 +4,8 @@
   const Crew=typeof module!=='undefined'&&module.exports?require('./crew.js'):root.BlindfireCrew,Motion=typeof module!=='undefined'&&module.exports?require('./vehicle-motion.js'):root.BlindfireMotion,Recon=typeof module!=='undefined'&&module.exports?require('./reconnaissance.js'):root.BlindfireRecon;
   const V1_MODELS=typeof module!=='undefined'&&module.exports?require('./v1-model-data.js'):root.BlindfireV1Models;
   const vehicleDefinition=spec=>Object.freeze({communicationRange:500,...spec,...Motion.CONFIG[spec.id],crewRoles:Object.freeze([...Crew.CONFIG[spec.id]])});
-  const W = 2000, H = 2000, RECON_RANGE = 300, INTEL_LIFE = 5, TAU = Math.PI * 2, GRAVITY = 34, ARTILLERY_RANGE = 1200, SHELL_SPEED = Math.sqrt(GRAVITY * ARTILLERY_RANGE), TRAIL_LIFE = 8, ORBIT_RADIUS = 50;
+  let W=2000,H=2000;
+  const  RECON_RANGE = 300, INTEL_LIFE = 5, TAU = Math.PI * 2, GRAVITY = 34, ARTILLERY_RANGE = 1200, SHELL_SPEED = Math.sqrt(GRAVITY * ARTILLERY_RANGE), TRAIL_LIFE = 8, ORBIT_RADIUS = 50;
   const RECON_RANGES = Object.freeze({vehicle:300,uav:400,missile:200,reconPlane:500,bomber:250});
   const reconRange = kind => RECON_RANGES[kind] || RECON_RANGES.vehicle;
   const ARTILLERY = {
@@ -40,11 +41,11 @@
   const VEHICLES = Object.freeze({
     handlv_missile:vehicleDefinition({id:DEFAULT_VEHICLE,tier:1,branch:'missile',researchCost:0,name:'悍驴导弹车',hp:100,speed:113/3.6,reverseSpeed:10/3.6,recon:300,intelLife:5,dimensions:Object.freeze({length:4.84,width:2.557,height:2.48}),muzzleHeight:1.65,muzzleLength:1.8,
       launcherFixed:true,weaponOverrides:Object.freeze({uav:{recon:380,life:36,intelLife:7},missile:{recon:150,life:8,intelLife:3}}),weapons:Object.freeze(['uav','missile','sam','mg']),price:0,model:'m1097',description:'初始导弹车，兼顾空中侦察、精确打击与近程防空。'}),
-    longnose_artillery:vehicleDefinition({id:'longnose_artillery',tier:6,branch:'artillery',researchCost:2500,minPitch:-3*Math.PI/180,maxPitch:68*Math.PI/180,name:'长鼻熊自行火炮',hp:255,speed:60/3.6,reverseSpeed:4/3.6,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.716,height:3.343}),muzzleHeight:2.7,muzzleLength:6.2,price:5000,artillery:Object.freeze({range:1300,directDamage:21,nearDamage:[0,21],blastRadius:26}),weaponOverrides:Object.freeze({uav:{hp:60,directDamage:80,recon:400,life:38,intelLife:7},mg:{airDamage:18,groundDamage:2}}),weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图落点瞄准、无人机侦察与近程机枪防御。'}),
+    longnose_artillery:vehicleDefinition({id:'longnose_artillery',tier:6,branch:'artillery',researchCost:2500,minPitch:-3*Math.PI/180,maxPitch:68*Math.PI/180,name:'长鼻熊自行火炮',hp:255,speed:60/3.6,reverseSpeed:4/3.6,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.716,height:3.343}),muzzleHeight:2.7,muzzleLength:6.2,price:5000,artillery:Object.freeze({range:1300,directDamage:21,nearDamage:[0,21],blastRadius:26,cooldown:7,speed:510}),weaponOverrides:Object.freeze({uav:{hp:60,directDamage:80,recon:400,life:38,intelLife:7},mg:{airDamage:18,groundDamage:2}}),weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图落点瞄准、无人机侦察与近程机枪防御。'}),
     kfz_artillery:vehicleDefinition({id:'kfz_artillery',tier:2,branch:'artillery',researchCost:800,minPitch:-3*Math.PI/180,maxPitch:72*Math.PI/180,name:'跳虫KFZ自行火炮',hp:110,speed:42/3.6,reverseSpeed:10/3.6,recon:230,intelLife:8,dimensions:Object.freeze({length:4.84,width:2.16,height:2.40}),muzzleHeight:1.85,muzzleLength:2.3,price:800,weapons:Object.freeze(['artillery','reconPlane','bomber']),model:'kfz_grille',hullAim:true,artillery:Object.freeze({name:'跳虫火炮',cooldown:6.5,range:900,directDamage:115,nearDamage:[0,115],blastRadius:19}),description:'固定火炮通过车体转向瞄准；可呼叫直线飞越侦察机或接管俯冲轰炸机投弹。'}),
     b_tank:vehicleDefinition({id:'b_tank',tier:1,branch:'tank',researchCost:0,name:'B号坦克',hp:170,speed:44/3.6,reverseSpeed:9/3.6,recon:200,intelLife:5,immunity:10,minPitch:-9*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:4.81,width:2.28,height:2.02}),muzzleHeight:1.65,muzzleLength:2.1,price:200,weapons:Object.freeze(['autocannon','repair','observation']),model:'panzer_ii',description:'20mm机炮配合车长扇形侦察；免疫低于10点伤害，每局可停车维修一次。'}),
     hero_tank:vehicleDefinition({id:'hero_tank',tier:3,branch:'tank',researchCost:1000,name:'战斗英雄号',hp:285,speed:40/3.6,reverseSpeed:15/3.6,recon:220,intelLife:5,immunity:15,minPitch:-3*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:9.9,width:3.32,height:2.93}),muzzleHeight:2.05,muzzleLength:5,price:1000,weapons:Object.freeze(['tankCannon','observation','highExplosive']),weaponOverrides:Object.freeze({tankCannon:{directDamage:125},highExplosive:{directDamage:135}}),model:'is2',description:'122mm火炮伤害125、爆炸半径5米、装填10秒；免疫低于15点伤害，可观察前方扇区或装填下一发高爆弹。'}),
-    cougar_artillery:vehicleDefinition({id:'cougar_artillery',tier:4,branch:'artillery',researchCost:1000,name:'美洲狮自行榴弹炮',hp:165,speed:48/3.6,reverseSpeed:10/3.6,recon:280,intelLife:8,mass:44,minPitch:-5*Math.PI/180,maxPitch:65*Math.PI/180,turretYaw:30*Math.PI/180,dimensions:Object.freeze({length:9.75,width:3.58,height:3.55}),muzzleHeight:2.2,muzzleLength:5.1,price:1000,weapons:Object.freeze(['artillery','uav','spade','mg']),artillery:Object.freeze({name:'M47 203.2mm榴弹炮',caliber:203.2,cooldown:30,speed:711,range:1000,directDamage:160,nearDamage:[0,160],blastRadius:25,gravity:711*711*(1000+2.2)/(1000-5.1*Math.SQRT1_2)**2}),weaponOverrides:Object.freeze({uav:{recon:420,life:36,intelLife:7},mg:{fireInterval:.09/1.1}}),model:'m53m55',preferredDistance:850,description:'可发射常规高爆弹，远距离曲射威力极强，适合远程火力压制。'}),
+    cougar_artillery:vehicleDefinition({id:'cougar_artillery',tier:4,branch:'artillery',researchCost:1000,name:'美洲狮自行榴弹炮',hp:165,speed:48/3.6,reverseSpeed:10/3.6,recon:280,intelLife:8,mass:44,minPitch:-5*Math.PI/180,maxPitch:65*Math.PI/180,turretYaw:30*Math.PI/180,dimensions:Object.freeze({length:9.75,width:3.58,height:3.55}),muzzleHeight:2.2,muzzleLength:5.1,price:1000,weapons:Object.freeze(['artillery','uav','spade','mg']),artillery:Object.freeze({name:'M47 203.2mm榴弹炮',caliber:203.2,cooldown:25,speed:410,range:1000,directDamage:160,nearDamage:[0,160],blastRadius:25,gravity:410*410*(1000+2.2)/(1000-5.1*Math.SQRT1_2)**2}),weaponOverrides:Object.freeze({uav:{recon:420,life:36,intelLife:7},mg:{fireInterval:.09/1.1}}),model:'m53m55',preferredDistance:850,description:'可发射常规高爆弹，远距离曲射威力极强，适合远程火力压制。'}),
     gladiator_kfz:vehicleDefinition({id:'gladiator_kfz',tier:1,branch:'artillery',researchCost:0,price:300,name:'角斗士KFZ',hp:95,immunity:0,enginePower:100,speed:35/3.6,reverseSpeed:6/3.6,recon:210,intelLife:8,minPitch:-4*Math.PI/180,maxPitch:75*Math.PI/180,dimensions:Object.freeze({length:4.67,width:2.06,height:2.80}),muzzleHeight:2.166,muzzleLength:1.897,hullAim:true,weapons:Object.freeze(['artillery','reconPlane','bomber']),artillery:Object.freeze({name:'150mm步兵炮',caliber:150,directDamage:110,nearDamage:[0,110],blastRadius:18,speed:240,range:800,cooldown:9,gravity:240*240*(800+2.166)/(800-1.897*Math.SQRT1_2)**2,shellMass:38,explosiveMass:8.3,historicalRate:'每分钟2—3发'}),weaponOverrides:Object.freeze({reconPlane:{recon:550,reconLife:25,life:30,intelLife:8,cooldown:30}}),model:'bison_kfz',description:'固定150mm步兵炮，支持地图落点瞄准和鸟瞰炮击；侦察机侦察25秒、飞行30秒，可呼叫空中支援。'}),
     warhorse:vehicleDefinition({id:'warhorse',collisionOffset:V1_MODELS.collisionOffsets.warhorse,tier:2,branch:'tank',researchCost:800,price:900,name:'军马',hp:210,immunity:12,mass:23.5,enginePower:300,speed:40/3.6,reverseSpeed:7/3.6,recon:220,intelLife:5,minPitch:-8*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:6.63,hullLength:5.92,width:2.88,height:2.68}),muzzleHeight:2.04,muzzleLength:3.89,weapons:Object.freeze(['tankCannon','observation','repair']),weaponOverrides:Object.freeze({tankCannon:{name:'75mm坦克炮',directDamage:85,speed:750,range:500,cooldown:6,blastRadius:0,life:2}}),model:'panzer_iv',description:'二级中型坦克，75mm主炮搭配车长观察和每局一次的停车维修。'}),
     annihilator_fv:vehicleDefinition({id:'annihilator_fv',tier:2,branch:'missile',researchCost:800,price:900,name:'歼灭者FV',hp:125,immunity:0,speed:64/3.6,reverseSpeed:8/3.6,recon:250,intelLife:5,launcherFixed:true,launchPitch:V1_MODELS.fv.pitch,dimensions:Object.freeze({length:5.05,width:2.22,height:2.43}),muzzleHeight:2.0,muzzleLength:1.58,weapons:Object.freeze(['missile','uav','rapidFire']),weaponOverrides:Object.freeze({missile:{name:'蚂蜂导弹',directDamage:83,directRadius:0,nearDamage:[0,83],blastRadius:5,speed:146,life:10,recon:100,intelLife:3,cooldown:4,magazine:4,reload:28,model:'hornet'},uav:{recon:380,life:36,intelLife:7}}),model:'humber_fv',description:'固定四联装发射架，蚂蜂导弹可手操；急速射连发四枚不可导航弹道导弹，独立冷却40秒。'}),
@@ -83,10 +84,11 @@
   for(let i=0;i<800;i++){let x,z;do{x=-150+treeRandom()*(W+300);z=-150+treeRandom()*(H+300);}while(BUILDINGS.some(b=>Math.hypot(b.x-x,b.z-z)<35));const scale=.55+treeRandom()*.7,yaw=treeRandom()*6;TREES.push(Object.freeze({x,z,y:terrain(x,z),scale,yaw,radius:.65*scale,height:16*scale}));}
   const BUSHES=[];
   const TREE_CELLS=new Map(),hillBuildings=BUILDINGS.slice(),hillTrees=TREES.slice();
-  function configureMap(id='hills'){
+  function configureMap(id='hills',size=2000){
+    W=H=size===2500?2500:2000;LAKE.x=W===2500?2180:1530;LAKE.z=W===2500?1250:1480;
     mapId=Object.hasOwn(MAPS,id)?id:'hills';BUILDINGS.length=0;TREES.length=0;TREE_CELLS.clear();
     if(mapId==='city'){
-      for(let row=0;row<10;row++)for(let col=0;col<10;col++){
+      for(let row=0;row<W/200;row++)for(let col=0;col<W/200;col++){
         const x=100+col*200,z=100+row*200;if((col>=1&&col<=3&&row>=1&&row<=3)||(col>=6&&col<=8&&row>=1&&row<=3))continue;if(((x-LAKE.x)/(LAKE.rx+85))**2+((z-LAKE.z)/(LAKE.rz+85))**2<1)continue;
         for(const dx of[-43,43])for(const dz of[-43,43])BUILDINGS.push({x:x+dx,z:z+dz,w:48,d:48,h:18+((row*7+col*13+(dx>0?3:0)+(dz>0?5:0))%8)*9});
       }
@@ -94,10 +96,10 @@
         for(const dx of [-160,0,160])for(const dz of [-160,0,160])BUILDINGS.push({x:cx+dx,z:cz+dz,w:kind==='factory'?105:96,d:kind==='factory'?88:96,h:kind==='factory'?22:42+((dx+dz)/160+2)*8,district:kind});
         if(kind==='factory')for(const x of [cx-110,cx+110])BUILDINGS.push({x,z:cz+105,w:12,d:12,h:64,district:'chimney'});
       }
-      for(let i=0;i<200;i++){const x=30+(i%20)*100,z=25+Math.floor(i/20)*200;if(inLake(x,z)||BUILDINGS.some(b=>Math.abs(x-b.x)<b.w/2+6&&Math.abs(z-b.z)<b.d/2+6))continue;TREES.push({x,z,y:terrain(x,z),scale:.65,yaw:i,radius:.65*.65,height:16*.65});}
-    }else {BUILDINGS.push(...hillBuildings);TREES.push(...hillTrees);}
+      for(let i=0;i<Math.ceil(W/100)*Math.ceil(H/200);i++){const x=30+(i%Math.ceil(W/100))*100,z=25+Math.floor(i/Math.ceil(W/100))*200;if(inLake(x,z)||BUILDINGS.some(b=>Math.abs(x-b.x)<b.w/2+6&&Math.abs(z-b.z)<b.d/2+6))continue;TREES.push({x,z,y:terrain(x,z),scale:.65,yaw:i,radius:.65*.65,height:16*.65});}
+    }else {const scale=W/2000;BUILDINGS.push(...hillBuildings.map(b=>({...b,x:b.x*scale,z:b.z*scale})));TREES.push(...hillTrees.map(t=>({...t,x:t.x*scale,z:t.z*scale,y:terrain(t.x*scale,t.z*scale)})));}
     for(const t of TREES){const key=Math.floor(t.x/50)+','+Math.floor(t.z/50);if(!TREE_CELLS.has(key))TREE_CELLS.set(key,[]);TREE_CELLS.get(key).push(t);}
-    BUSHES.length=0;BUSHES.push(...Recon.bushes(mapId,BUILDINGS));
+    BUSHES.length=0;BUSHES.push(...Recon.bushes(mapId,BUILDINGS,W));
     return mapId;
   }
   configureMap();
@@ -130,7 +132,7 @@
     return !inLake(x,z) && x >= 18 && x <= W - 18 && z >= 18 && z <= H - 18 && !BUILDINGS.some(b => Math.abs(x - b.x) < b.w / 2 + radius && Math.abs(z - b.z) < b.d / 2 + radius) && !TREES.some(t=>Math.hypot(t.x-x,t.z-z)<t.radius+radius);
   }
   const Collision=typeof module!=='undefined'&&module.exports?require('./vehicle-collision.js'):root.BlindfireCollision;
-  const vehicleClear=Collision.create({vehicleSpec,BUILDINGS,TREES,W,H,inLake,lakeOverlap:(x,z,ex,ez)=>mapId==='city'&&Math.abs(x-LAKE.x)<=LAKE.rx+ex&&Math.abs(z-LAKE.z)<=LAKE.rz+ez});
+  const vehicleClear=Collision.create({vehicleSpec,BUILDINGS,TREES,bounds:()=>({W,H}),inLake,lakeOverlap:(x,z,ex,ez)=>mapId==='city'&&Math.abs(x-LAKE.x)<=LAKE.rx+ex&&Math.abs(z-LAKE.z)<=LAKE.rz+ez});
 
   function vehicleHit(a,b,p,impact=false){
     const spec=vehicleSpec(p.vehicleId),d=spec.dimensions,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;
@@ -199,7 +201,7 @@
   }
   class Engine {
     constructor(opts = {}) {
-      this.mapId=configureMap(opts.mapId);
+      this.mapId=configureMap(opts.mapId,opts.fieldSize||(opts.battleMode==='dark_forest'?2500:2000));this.fieldSize=W;
       this.seed = opts.seed || (Date.now() >>> 0); this.rng = this.seed;this.crewRng=this.seed^0x6a09e667; this.mode = opts.mode || 'ai'; this.difficulty = opts.difficulty || 'standard';
       this.battleMode=opts.battleMode==='dark_forest'?'dark_forest':'duel';this.t = 0; this.limit = this.battleMode==='dark_forest'?300:180; this.countdown = opts.countdown === undefined ? 3 : opts.countdown;
       this.over = false; this.winner = null; this.reason = ''; this.id = 0;
@@ -581,7 +583,7 @@
       for(const [id,c]of p.intel.air)if(this.t-c.t>=(c.life??intelLife(p)))p.intel.air.delete(id);
     }this.reconPassCache=null;}
     checkSurvivor(){const alive=this.players.filter(p=>p.hp>0);if(alive.length===1)this.finish(alive[0].id,'黑暗森林 · 最后一辆载具存活');else if(!alive.length)this.finish(null,'所有载具被摧毁');}
-    updateZone(dt){const elapsed=this.t-this.countdown,stage=Math.min(5,Math.floor((elapsed+1e-7)/60)),radii=[Math.hypot(W,H)/2+1,1000,750,500,250,0];this.zone={x:W/2,z:H/2,radius:radii[stage],stage,next:Math.min(300,(stage+1)*60),damageRate:.02};
+    updateZone(dt){const elapsed=this.t-this.countdown,stage=Math.min(5,Math.floor((elapsed+1e-7)/60)),radii=[Math.hypot(W,H)/2+1,W*.5,W*.375,W*.25,W*.125,0];this.zone={x:W/2,z:H/2,radius:radii[stage],stage,next:Math.min(300,(stage+1)*60),damageRate:.02};
       const victims=[];for(const p of this.players){if(p.hp<=0)continue;if(stage===5||dist(p,this.zone)>this.zone.radius){p.gasClock=(p.gasClock||0)+dt;const ticks=Math.floor(p.gasClock+1e-8);if(ticks){p.gasClock-=ticks;victims.push({p,damage:Math.round(p.maxHp*.02)*ticks});}}else p.gasClock=0;}
       const final=stage===5&&victims.length===this.players.filter(p=>p.hp>0).length&&victims.length>0&&victims.every(v=>v.p.hp<=v.damage)?victims.reduce((a,b)=>b.p.hp>a.p.hp?b:a).p:null;
       for(const {p,damage}of victims){if(p===final){p.hp=Math.max(1,p.hp);continue;}p.hp=Math.max(0,p.hp-damage);if(p.hp===0){this.crewVoice(p.id,'destroyed');p.eliminatedAt=this.t;p.pilot=null;p.repairUntil=0;p.mg=false;this.eliminations.push(p.id);}}
@@ -839,6 +841,6 @@
         threats:shots.filter(s=>!s.mine&&!s.retained&&['missile','uav','sam','reconPlane','bomber'].includes(s.kind)&&dist3(s,{...p,y:p.y+1.65})<=RECON_RANGE).length };
     }
   }
-  const api = { projectileDirection,V1_MODELS,GUN_CONTACTS,groundGunPoint,GUN_MOUNTS,gunRestPitch,Engine,solveArtillery,BRANCHES,matchCandidates,artilleryRanges,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,weaponSpec,W,H,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,TREE_CELLS,BUSHES,Crew,Motion,Recon,buildingBlocks,treeHit,clearGround,vehicleClear,vehicleHit,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
+  const api = { get W(){return W;},get H(){return H;}, projectileDirection,V1_MODELS,GUN_CONTACTS,groundGunPoint,GUN_MOUNTS,gunRestPitch,Engine,solveArtillery,BRANCHES,matchCandidates,artilleryRanges,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,weaponSpec,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,TREE_CELLS,BUSHES,Crew,Motion,Recon,buildingBlocks,treeHit,clearGround,vehicleClear,vehicleHit,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; root.Blindfire = api;
 })(typeof window !== 'undefined' ? window : globalThis);
