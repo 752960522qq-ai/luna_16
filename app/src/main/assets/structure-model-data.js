@@ -1,0 +1,1 @@
+(function(root){const data={"outpost":{"w":36,"h":17.529858625040088,"d":26.147413496754734},"base_bunker":{"w":64,"h":34.811791304686096,"d":63.99999999999999}};if(typeof module!=="undefined"&&module.exports)module.exports=data;root.BlindfireStructures=data;})(typeof window!=="undefined"?window:globalThis);

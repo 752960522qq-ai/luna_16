@@ -17,6 +17,7 @@ jobs:
         run: |
           node tests/october-gameplay.test.mjs
           node tests/v1-gameplay.test.cjs
+          node tests/breakthrough.test.cjs
           node tests/crew-voice.test.mjs
           node tests/cougar-update.test.mjs
           node tests/explosion-effects.test.mjs
@@ -44,6 +45,7 @@ jobs:
           fi
           SOFTWARE_GL=1 node tests/october-browser.test.cjs
           SOFTWARE_GL=1 node tests/v1-browser.test.cjs
+          SOFTWARE_GL=1 node tests/landscape-breakthrough.test.cjs
           SOFTWARE_GL=1 node tests/combat-update-browser.test.cjs
           SOFTWARE_GL=1 node tests/cougar-update-browser.test.cjs
           SOFTWARE_GL=1 node tests/explosion-effects-browser.test.cjs

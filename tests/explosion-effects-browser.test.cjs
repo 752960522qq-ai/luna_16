@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{open}=require('./browser-helpers.cjs');
-(async()=>{const{browser,server,url}=await open(),page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
+(async()=>{const{browser,server,url}=await open(),page=await browser.newPage({viewport:{width:844,height:390}}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/WebGL|shader|texture/i.test(m.text()))errors.push(m.text());});
 try{
  await page.goto(url);await page.waitForFunction(()=>window.GameDebug?.renderer.modelsReady,null,{timeout:60000});
