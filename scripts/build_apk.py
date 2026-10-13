@@ -13,6 +13,8 @@ ap.add_argument('--ecj-jar')
 ap.add_argument('--keystore',required=True)
 ap.add_argument('--password-file',required=True)
 ap.add_argument('--output',required=True)
+ap.add_argument('--application-id')
+ap.add_argument('--version-name')
 ap.add_argument('--full-unlock-test',action='store_true')
 ap.add_argument('--infinite-coins',action='store_true')
 args=ap.parse_args()
@@ -24,7 +26,7 @@ def run(cmd):
     if result.returncode:
         print((result.stdout+result.stderr)[-8000:]);raise SystemExit(result.returncode)
     if result.stdout:print(result.stdout[-8000:])
-config=(root/'app/build.gradle').read_text();version_code=re.search(r'versionCode\s+(\d+)',config).group(1);version_name=re.findall(r"'([0-9]+(?:\.[0-9]+)+)'",config)[-1];version_name+=('-full-unlock-test' if args.full_unlock_test else '-infinite' if args.infinite_coins else '')
+config=(root/'app/build.gradle').read_text();version_code=re.search(r'versionCode\s+(\d+)',config).group(1);version_name=args.version_name or re.findall(r"'([0-9]+(?:\.[0-9]+)+)'",config)[-1];application_id=args.application_id
 generated=build/'generated/com/luna/blindfire/BuildConfig.java';generated.parent.mkdir(parents=True,exist_ok=True)
 generated.write_text('package com.luna.blindfire; public final class BuildConfig { public static final boolean FULL_UNLOCK_TEST='+str(args.full_unlock_test).lower()+'; public static final boolean INFINITE_COINS='+str(args.infinite_coins).lower()+'; }\n')
 sources=sorted((src/'java').rglob('*.java'))+[generated]
@@ -35,7 +37,9 @@ with zipfile.ZipFile(build/'classes.jar','w') as z:
     for p in sorted((build/'classes').rglob('*.class')):z.write(p,p.relative_to(build/'classes'))
 run(['java','-cp',args.r8_jar,'com.android.tools.r8.D8','--lib',args.android_jar,'--min-api','23','--output',build/'dex',build/'classes.jar'])
 run([args.aapt2,'compile','--dir',src/'res','-o',build/'res.zip'])
-run([args.aapt2,'link','--manifest',src/'AndroidManifest.xml','-I',args.android_jar,'-A',src/'assets','--min-sdk-version','23','--target-sdk-version','35','--version-code',version_code,'--version-name',version_name,'-o',build/'resources.apk',build/'res.zip'])
+link=['link','--manifest',src/'AndroidManifest.xml']
+if application_id:link+=['--rename-manifest-package',application_id]
+run([args.aapt2,*link,'-I',args.android_jar,'-A',src/'assets','--min-sdk-version','23','--target-sdk-version','35','--version-code',version_code,'--version-name',version_name,'-o',build/'resources.apk',build/'res.zip'])
 with zipfile.ZipFile(build/'resources.apk') as source,zipfile.ZipFile(build/'unsigned.apk','w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as target:
     for info in source.infolist():target.writestr(info,source.read(info.filename))
     target.write(build/'dex'/'classes.dex','classes.dex')
