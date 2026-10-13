@@ -9,9 +9,9 @@ for old in (root/'audio/crew').glob('*.mp3'):old.unlink()
 with zipfile.ZipFile(archives[0]) as z:
  clips=[]
  for name in z.namelist():
-  if name.endswith('Voice_Clip_Index.csv'):(root/'audio/crew/Voice_Clip_Index.csv').write_bytes(z.read(name))
+  if name.endswith('Voice_Clip_Index.csv'):(root/'audio/crew/Voice_Clip_Index.csv').write_bytes(b''.join(line for line in z.read(name).splitlines(keepends=True) if b'Rapid_Fire_Urgent' not in line and b'Reload_Now_Urgent' not in line))
  for name in z.namelist():
-  if not name.endswith('.mp3'):continue
+  if not name.endswith('.mp3') or Path(name).stem in ['Rapid_Fire_Urgent','Reload_Now_Urgent']:continue
   out=root/'audio/crew'/Path(name).name;out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(z.read(name));clips.append(out.stem)
 (root/'audio/crew-bank.js').write_text('export const CREW_CLIPS = '+json.dumps(clips)+';\n')
 # The large effect retains its battlefield size/lifetime, replacing only its artwork.

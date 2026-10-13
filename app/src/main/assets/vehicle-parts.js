@@ -11,8 +11,8 @@ export function components(mesh){
 }
 // Decode normalized integer attributes before applying model-space transforms.
 // Writing metre coordinates back into quantized Int16 positions corrupts the mesh.
-function floatGeometry(geo){return geometry(geo,geo.index?Array.from(geo.index.array):Array.from({length:geo.attributes.position.count},(_,i)=>i));}
-function geometry(geo,indices,center=new THREE.Vector3()){
+export function floatGeometry(geo){return geometry(geo,geo.index?Array.from(geo.index.array):Array.from({length:geo.attributes.position.count},(_,i)=>i));}
+export function geometry(geo,indices,center=new THREE.Vector3()){
  const ids=[...new Set(indices)],map=new Map(ids.map((id,i)=>[id,i])),out=new THREE.BufferGeometry();
  for(const[name,a]of Object.entries(geo.attributes)){const v=new Float32Array(ids.length*a.itemSize);for(let i=0;i<ids.length;i++)for(let k=0;k<a.itemSize;k++)v[i*a.itemSize+k]=a.getComponent(ids[i],k)-(name==='position'?center.getComponent(k):0);out.setAttribute(name,new THREE.BufferAttribute(v,a.itemSize));}
  out.setIndex(indices.map(i=>map.get(i)));out.computeBoundingSphere();return out;
@@ -147,7 +147,7 @@ function gpuRigidBelts(scene,entries,alignCenters=false){
 vec3 treadPoint(float s){s=mod(mod(s,${per.toFixed(8)})+${per.toFixed(8)},${per.toFixed(8)});float L=${L.toFixed(8)},r=${r.toFixed(8)},cy=${cy.toFixed(8)},z0=${z0.toFixed(8)},z1=${z1.toFixed(8)};if(s<L)return vec3(cy-r,z0+s,0.);if(s<L+3.14159265*r){float a=(s-L)/r;return vec3(cy-r*cos(a),z1+r*sin(a),-a);}if(s<2.*L+3.14159265*r)return vec3(cy+r,z1-(s-L-3.14159265*r),-3.14159265);float a=(s-2.*L-3.14159265*r)/r;return vec3(cy+r*cos(a),z0-r*sin(a),-3.14159265-a);}
 `+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvec3 tq=treadPoint(treadPhase.x-treadTravel);float ta=tq.z-treadPhase.w;mat2 tr=mat2(cos(ta),sin(ta),-sin(ta),cos(ta));objectNormal.yz=tr*objectNormal.yz;').replace('#include <begin_vertex>','#include <begin_vertex>\nvec3 tRest=treadPoint(treadPhase.x);transformed.yz=tq.xy+tr*(position.yz-tRest.xy);');};material.customProgramCacheKey=()=>`rigid-belt:${z0}:${z1}:${cy}:${r}`;const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,material);mesh.name='gpuOriginalTreads';mesh.frustumCulled=false;scene.add(mesh);belts.push({mesh,uniform,side:bounds.getCenter(new THREE.Vector3()).x<0?'left':'right',gpu:true,supportAt,contactMin:bounds.min.y,contactBounds:bounds.clone()});for(const geo of geos)geo.dispose();}return belts;
 }
-function surfaceBelt(scene,geo,source){
+export function surfaceBelt(scene,geo,source){
  geo.computeBoundingBox();const bounds=geo.boundingBox,side=bounds.getCenter(new THREE.Vector3()).x<0?'left':'right',material=source.clone(),uniform={value:0};
  // Calibrate texture travel against the ground run in model metres. UV orientation differs per asset.
  const pos=geo.attributes.position,uv=geo.attributes.uv,samples=[];
@@ -158,7 +158,7 @@ function surfaceBelt(scene,geo,source){
  material.onBeforeCompile=shader=>{shader.uniforms.treadTravel=uniform;shader.vertexShader='uniform float treadTravel;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv += vec2('+(-slopeU).toFixed(9)+','+(-slopeV).toFixed(9)+') * treadTravel;\n#endif');};material.customProgramCacheKey=()=> 'continuous-tread-scroll:'+slopeU+':'+slopeV;const mesh=new THREE.Mesh(geo,material);mesh.name='continuousOriginalTread';scene.add(mesh);return {mesh,uniform,side,gpu:true,uvSlope:{u:slopeU,v:slopeV},contactMin:bounds.min.y,contactBounds:bounds.clone()};
 }
 
-function batchParts(parent,entries){
+export function batchParts(parent,entries){
  parent.updateWorldMatrix(true,false);const inv=parent.matrixWorld.clone().invert(),groups=new Map();for(const e of entries){const ids=e.geo.index?Array.from(e.geo.index.array):Array.from({length:e.geo.attributes.position.count},(_,i)=>i),geo=geometry(e.geo,ids).applyMatrix4(inv),key=e.material.uuid+Object.keys(geo.attributes).sort().join(',');if(!groups.has(key))groups.set(key,{material:e.material,geos:[]});groups.get(key).geos.push(geo);}for(const {material,geos}of groups.values()){const merged=mergeGeometries(geos);parent.add(new THREE.Mesh(merged,material));for(const geo of geos)geo.dispose();}
 }
 export function articulateTierTwo(raw,id){

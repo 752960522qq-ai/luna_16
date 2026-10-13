@@ -2,11 +2,13 @@ import {CREW_CLIPS} from './audio/crew-bank.js';
 const types={missile:'Missile_Vehicle_Spotted',artillery:'Self_Propelled_Artillery_Spotted',tank:'Tank_Spotted'};
 const air={uav:'Enemy_Drone_Spotted',reconPlane:'Enemy_Recon_Aircraft_Spotted',bomber:'Air_Raid_Alert'};
 const launch={uav:'Friendly_Drone_Airborne',reconPlane:'Recon_Aircraft_On_Course',bomber:'Fighter_Attack_Approach',missile:'Missile_Launched'};
-export const VOICE_POOLS=Object.freeze({start:['Prepare_For_Battle','All_Units_To_Positions','Board_Vehicles'],hit:['Target_Hit','Target_Heavily_Damaged','Good_Hit'],hurt:['We_Are_Hit','Vehicle_Hit','Enemy_Hit_Us'],kill:['Enemy_Destroyed','Target_Destroyed','Send_Them_To_Hell'],destroyed:['Vehicle_Destroyed_Retreat','Vehicle_Destroyed_Evacuate'],win:['Mission_Victory_Clear_Battlefield','Mission_Victory_Well_Done'],loss:['Mission_Failed_Withdraw','Mission_Failed_Encouragement'],artilleryFire:['Fire_Short','Launch','Open_Fire'],mapAim:['Firing_Solution_Calculated','Firing_Data_Set_Prepare_To_Fire'],reloadReady:['Ammunition_Loaded','High_Explosive_Ready','Shrapnel_Round_Ready'],urgentReload:['Rapid_Fire_Urgent','Reload_Now_Urgent'],close:['Direct_Fire','Close_Range']});
+export const CREW_READY_ENABLED=false;
+export const VOICE_POOLS=Object.freeze({start:['Prepare_For_Battle','All_Units_To_Positions','Board_Vehicles'],hit:['Target_Hit','Target_Heavily_Damaged','Good_Hit'],hurt:['We_Are_Hit','Vehicle_Hit','Enemy_Hit_Us'],kill:['Enemy_Destroyed','Target_Destroyed','Send_Them_To_Hell'],destroyed:['Vehicle_Destroyed_Retreat','Vehicle_Destroyed_Evacuate'],win:['Mission_Victory_Clear_Battlefield','Mission_Victory_Well_Done'],loss:['Mission_Failed_Withdraw','Mission_Failed_Encouragement'],artilleryFire:['Fire_Short','Launch','Open_Fire'],mapAim:['Firing_Solution_Calculated','Firing_Data_Set_Prepare_To_Fire'],reloadReady:['Ammunition_Loaded','High_Explosive_Ready','Shrapnel_Round_Ready'],close:['Direct_Fire','Close_Range']});
 export const READY_TEXT={driver:'驾驶员就位',gunner:'炮长就位',loader:'二炮手就位',radio:'无线电员就位'};
 const choose=(pool,random)=>pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];
 export function voiceClips(event,random=Math.random){
  if(event.kind==='spotted'){if(event.distance>1000)return [];const clips=[types[event.targetKind],`Clock_${String(event.clock).padStart(2,'0')}`];if(event.distance<200)clips.push(choose(VOICE_POOLS.close,random));else clips.push('Firing_Range',`Range_${String(Math.max(200,Math.min(1000,Math.round(event.distance/100)*100))).padStart(4,'0')}m`);return clips.filter(Boolean);}
+ if(event.kind==='ready'&&!CREW_READY_ENABLED)return [];
  if(event.kind==='ready')return ['driver','gunner','loader','radio'].filter(r=>event.roles?.includes(r)).map(r=>'ready_'+r);
  if(event.kind==='air')return air[event.targetKind]?[air[event.targetKind]]:[];
  if(event.kind==='launch')return launch[event.targetKind]?[launch[event.targetKind]]:[];
@@ -15,7 +17,7 @@ export function voiceClips(event,random=Math.random){
 export class CrewVoice {
  constructor(audio){this.audio=audio;this.random=Math.random;this.buffers=new Map();this.reset();}
  load(){if(this.loading||!this.audio.ctx)return;this.loading=Promise.allSettled(CREW_CLIPS.map(async name=>{const r=await fetch(new URL(`audio/crew/${name}.mp3`,import.meta.url));if(!r.ok)throw Error(name);this.buffers.set(name,await this.audio.ctx.decodeAudioData(await r.arrayBuffer()));})).then(results=>{this.errors=results.flatMap((r,i)=>r.status==='rejected'?[CREW_CLIPS[i]]:[]);this.loaded=true;this.prepareReady();});}
- prepareReady(){if(this.readyRequested)return;this.readyRequested=true;
+ prepareReady(){if(!CREW_READY_ENABLED)return;if(this.readyRequested)return;this.readyRequested=true;
   if(globalThis.Native?.prepareCrewVoices){globalThis.onNativeCrewVoice=async(role,data)=>{if(!READY_TEXT[role])return;if(!data){(this.readyUnavailable||=new Set()).add(role);return;}try{const bytes=Uint8Array.from(atob(data),c=>c.charCodeAt(0));this.buffers.set('ready_'+role,await this.audio.ctx.decodeAudioData(bytes.buffer));if(!this.current)this.next();}catch(e){console.warn('Crew ready voice unavailable',role);}};Native.prepareCrewVoices();}
  }
  reset(){this.generation=(this.generation||0)+1;globalThis.speechSynthesis?.cancel();for(const source of this.sources||[])try{source.stop();}catch(_){}this.sources=new Set();this.current=null;this.queue=[];this.seen=new Set();this.cooldowns=new Map();this.terminal=false;this.lastTime=-1;}
@@ -30,7 +32,7 @@ export class CrewVoice {
  const interrupt=['win','loss','destroyed'].includes(event.kind);
  if(interrupt){this.generation++;globalThis.speechSynthesis?.cancel();for(const source of this.sources)try{source.stop();}catch(_){}this.sources.clear();this.current=null;this.queue=[];this.terminal=true;this.queue.push({event,clips});this.next();return true;}
  if(this.terminal)return false;
- const cooldown=['spotted','air'].includes(event.kind)?'discovery':['hit','hurt','urgentReload'].includes(event.kind)?event.kind:event.kind==='mapAim'?'mapAim':null;
+ const cooldown=['spotted','air'].includes(event.kind)?'discovery':['hit','hurt'].includes(event.kind)?event.kind:event.kind==='mapAim'?'mapAim':null;
  if(cooldown&&event.t-(this.cooldowns.get(cooldown)??-Infinity)<(event.kind==='mapAim'?15:10))return false;
  if(!['kill','ready'].includes(event.kind)&&(this.current||this.queue.length))return false;
  if(cooldown)this.cooldowns.set(cooldown,event.t);

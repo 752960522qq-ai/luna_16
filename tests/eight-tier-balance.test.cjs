@@ -1,9 +1,9 @@
 const assert=require('node:assert/strict');
 const B=require('../app/src/main/assets/engine.js');
 const {Progress,KEY}=require('../app/src/main/assets/progress.js');
-const ranks={handlv_missile:1,b_tank:1,kfz_artillery:2,hero_tank:3,cougar_artillery:4,black_turtle:6,longnose_artillery:6};
-const hp={handlv_missile:100,b_tank:170,kfz_artillery:110,hero_tank:285,cougar_artillery:165,black_turtle:165,longnose_artillery:255};
-const physical={handlv_missile:[113,10,'good'],b_tank:[44,9,'medium'],kfz_artillery:[42,10,'medium'],hero_tank:[40,15,'poor'],cougar_artillery:[48,10,'medium'],black_turtle:[62,10,'medium'],longnose_artillery:[60,4,'good']};
+const ranks={gladiator_kfz:1,warhorse:2,annihilator_fv:2,handlv_missile:1,b_tank:1,kfz_artillery:2,hero_tank:3,cougar_artillery:4,black_turtle:6,longnose_artillery:6};
+const hp={gladiator_kfz:95,warhorse:210,annihilator_fv:125,handlv_missile:100,b_tank:170,kfz_artillery:110,hero_tank:285,cougar_artillery:165,black_turtle:165,longnose_artillery:255};
+const physical={gladiator_kfz:[35,6,'medium'],warhorse:[40,7,'medium'],annihilator_fv:[64,8,'medium'],handlv_missile:[113,10,'good'],b_tank:[44,9,'medium'],kfz_artillery:[42,10,'medium'],hero_tank:[40,15,'poor'],cougar_artillery:[48,10,'medium'],black_turtle:[62,10,'medium'],longnose_artillery:[60,4,'good']};
 for(const [id,v] of Object.entries(B.VEHICLES)){
  assert.equal(v.tier,ranks[id],id+' tier');assert.equal(v.hp,hp[id],id+' durability');
  assert.equal(v.speed,physical[id][0]/3.6,id+' historical forward speed');

@@ -1,8 +1,8 @@
 /* Host-owned crew members. One survivor occupies one station; priority is gunner, driver. */
 (function(root){'use strict';
  const ROLES=Object.freeze({commander:'车长',gunner:'炮长',loader:'二炮手',driver:'驾驶员',radio:'无线电员'});
- const CONFIG=Object.freeze({handlv_missile:['driver','gunner','loader'],longnose_artillery:['commander','driver','gunner','loader','radio'],hero_tank:['commander','gunner','driver','loader'],b_tank:['commander','gunner','driver'],kfz_artillery:['commander','gunner','loader','driver'],black_turtle:['commander','driver','gunner','loader'],cougar_artillery:['commander','gunner','loader','driver','radio']});
- const MAIN=new Set(['missile','artillery','tankCannon','autocannon']);
+ const CONFIG=Object.freeze({gladiator_kfz:['commander','gunner','loader','driver'],warhorse:['commander','gunner','loader','driver','radio'],annihilator_fv:['commander','gunner','driver'],handlv_missile:['driver','gunner','loader'],longnose_artillery:['commander','driver','gunner','loader','radio'],hero_tank:['commander','gunner','driver','loader'],b_tank:['commander','gunner','driver'],kfz_artillery:['commander','gunner','loader','driver'],black_turtle:['commander','driver','gunner','loader'],cougar_artillery:['commander','gunner','loader','driver','radio']});
+ const MAIN=new Set(['missile','artillery','tankCannon','autocannon','rapidFire']);
  function create(id){return(CONFIG[id]||CONFIG.handlv_missile).map((role,id)=>({id,original:role,role,alive:true}));}
  function has(crew,role){return !crew||crew.some(m=>m.alive&&m.role===role);}
  function modifiers(crew){const existed=role=>crew?.some(m=>m.original===role),missing=role=>existed(role)&&!has(crew,role),command=missing('commander'),radio=missing('radio');return{speed:command?.9:1,recon:(command?.9:1)*(radio?.8:1),intel:(command?.9:1)*(radio?.8:1),cooldown:command?1.1:1,mainCooldown:missing('loader')?1.3:1,drive:has(crew,'driver'),main:has(crew,'gunner'),alive:crew?crew.filter(m=>m.alive).length:Infinity};}
