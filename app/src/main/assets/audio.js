@@ -1,9 +1,10 @@
+import {CrewVoice} from './crew-voice.js';
 import {AUDIO_CLIPS,ENGINE_PROFILES} from './audio-bank.js';
 /* Offline procedural vehicle and weapon audio. Gameplay sounds use confirmed host events. */
 export class GameAudio {
-  constructor(){this._enabled=true;this.ctx=null;this.buffers=new Map();this.sampleBuffers=new Map();this.sampleLoops=new Map();this.seen=new Set();this.voices=new Set();this.counts={};this.engineLevel=0;this.lastTime=-1;}
+  constructor(){this._enabled=true;this.ctx=null;this.buffers=new Map();this.sampleBuffers=new Map();this.sampleLoops=new Map();this.seen=new Set();this.voices=new Set();this.counts={};this.engineLevel=0;this.lastTime=-1;this.crewVoice=new CrewVoice(this);}
   get enabled(){return this._enabled;}
-  set enabled(value){this._enabled=!!value;if(this.master)this.master.gain.setTargetAtTime(this._enabled?.7:0,this.ctx.currentTime,.025);if(!this._enabled)this.stopLoops();}
+  set enabled(value){this._enabled=!!value;if(this.master)this.master.gain.setTargetAtTime(this._enabled?.7:0,this.ctx.currentTime,.025);if(!this._enabled){this.stopLoops();this.crewVoice.stop();}}
   init(){
     if(!this.enabled)return;
     try{
@@ -17,7 +18,7 @@ export class GameAudio {
         this.engineHarmonic=ctx.createOscillator();this.engineHarmonic.type='triangle';this.engineHarmonic.frequency.value=88;const blend=ctx.createGain();blend.gain.value=.35;this.engineHarmonic.connect(blend);blend.connect(filter);this.engineHarmonic.start();
         this.droneGain=ctx.createGain();this.droneGain.gain.value=0;this.droneGain.connect(this.master);this.droneOsc=ctx.createOscillator();this.droneOsc.type='triangle';this.droneOsc.frequency.value=195;this.droneOsc.connect(this.droneGain);this.droneOsc.start();
       }
-      this.loadSamples();
+      this.loadSamples();this.crewVoice.load();
       if(this.ctx.state==='suspended')this.ctx.resume().catch(()=>{});
     }catch(e){this.error=String(e);}
   }
@@ -41,7 +42,7 @@ export class GameAudio {
     }
     return buffer;
   }
-  reset(){this.seen.clear();this.lastTime=-1;this.stopLoops();for(const source of this.voices)try{source.stop();}catch(_){}this.voices.clear();}
+  reset(){this.crewVoice.reset();this.seen.clear();this.lastTime=-1;this.stopLoops();for(const source of this.voices)try{source.stop();}catch(_){}this.voices.clear();}
   stopLoops(){for(const loop of this.sampleLoops.values())loop.gain.gain.setTargetAtTime(0,this.ctx.currentTime,.03);this.engineLevel=0;if(this.ctx&&this.engineGain){const t=this.ctx.currentTime;this.engineGain.gain.setTargetAtTime(0,t,.03);this.droneGain.gain.setTargetAtTime(0,t,.03);}}
   play(kind){
     if(!this.enabled||!this.ctx||this.ctx.state!=='running')return;
@@ -57,7 +58,7 @@ export class GameAudio {
     source.onended=()=>{this.voices.delete(source);source.disconnect();gain.disconnect();if(pan)pan.disconnect();};source.start();
   }
   sync(view,playing){
-    if(!view){this.stopLoops();return;}if(view.t<this.lastTime)this.reset();this.lastTime=view.t;
+    if(!view){this.crewVoice.sync(null,false);this.stopLoops();return;}if(view.t<this.lastTime)this.reset();this.lastTime=view.t;this.crewVoice.sync(view,playing);
     for(const e of view.sounds||[]){if(this.seen.has(e.id))continue;this.seen.add(e.id);if(playing)this.event(e);}
     if(this.seen.size>256)this.seen=new Set([...this.seen].slice(-128));
     if(!playing||view.over||!this.enabled||!this.ctx||this.ctx.state!=='running'){this.stopLoops();return;}
@@ -69,5 +70,5 @@ export class GameAudio {
     const planes=view.shots.filter(s=>s.kind==='bomber'&&!s.retained).map(s=>({...s,d:Math.hypot(s.x-listener.x,s.y-listener.y,s.z-listener.z)})).sort((a,b)=>a.d-b.d),plane=planes[0],planeLevel=plane?.15*Math.max(0,1-plane.d/450)**2:0;this.sampleLoop('bomber-engine','bomber-engine',plane?Math.min(1.25,.85+plane.speed/250):1,planeLevel);
     const droneLevel=.06*Math.max(0,1-d/160)**2,recorded=this.sampleLoop('drone','drone-loop',1.15,droneLevel);this.droneGain.gain.setTargetAtTime(recorded?0:droneLevel,t,.09);
   }
-  get stats(){return{enabled:this.enabled,state:this.ctx?this.ctx.state:'idle',engine:this.engineLevel,voices:this.voices.size,events:{...this.counts},buffers:this.buffers.size,samples:this.sampleBuffers.size,sampleErrors:this.sampleErrors||[],engineClip:(ENGINE_PROFILES[this.lastVehicle]||{}).clip,error:this.error||null};}
+  get stats(){return{enabled:this.enabled,state:this.ctx?this.ctx.state:'idle',engine:this.engineLevel,voices:this.voices.size,events:{...this.counts},buffers:this.buffers.size,samples:this.sampleBuffers.size,sampleErrors:this.sampleErrors||[],engineClip:(ENGINE_PROFILES[this.lastVehicle]||{}).clip,crew:{loaded:this.crewVoice.buffers.size,errors:this.crewVoice.errors||[],current:this.crewVoice.current?.event.kind||null,queued:this.crewVoice.queue.length},error:this.error||null};}
 }
