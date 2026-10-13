@@ -3,7 +3,7 @@ import {createRequire} from 'node:module';
 import {CrewVoice,voiceClips} from '../app/src/main/assets/crew-voice.js';
 import {CREW_CLIPS} from '../app/src/main/assets/audio/crew-bank.js';
 const B=createRequire(import.meta.url)('../app/src/main/assets/engine.js');
-for(const d of [0,199,200,249,300,999,1000,1001]){const c=voiceClips({kind:'spotted',targetKind:'tank',clock:3,distance:d});if(d>1000)assert.deepEqual(c,[]);else{assert.equal(c[0],'Tank_Spotted');assert.equal(c[1],'Direction_03_OClock');assert.equal(c.includes('Firing_Distance'),d>=200);for(const name of c)assert.ok(CREW_CLIPS.includes(name));}}
+for(const d of [0,199,200,249,300,999,1000,1001]){const c=voiceClips({kind:'spotted',targetKind:'tank',clock:3,distance:d});if(d>1000)assert.deepEqual(c,[]);else{assert.equal(c[0],'Tank_Spotted');assert.equal(c[1],'Clock_03');assert.equal(c.includes('Firing_Range'),d>=200);for(const name of c)assert.ok(CREW_CLIPS.includes(name));}}
 function make(){return new B.Engine({mode:'lan',countdown:0,mapId:'city',seed:1});}
 const e=make(),p=e.players[0],foe=e.players[1];Object.assign(p,{x:1000,y:300,z:1000,yaw:Math.PI/2});Object.assign(foe,{x:1100,y:300,z:1000});e.updateIntel();let detected=e.crewEvents.filter(v=>v.owner===0&&v.kind==='spotted');assert.equal(detected.length,1);assert.equal(detected[0].clock,12);e.t=20;e.updateIntel();assert.equal(e.crewEvents.filter(v=>v.owner===0&&v.kind==='spotted').length,1);foe.x=1500;e.updateIntel();foe.x=1100;e.updateIntel();assert.equal(e.crewEvents.filter(v=>v.owner===0&&v.kind==='spotted').length,2);
 // Retained contacts and other reconnaissance sources never grant voice permission.

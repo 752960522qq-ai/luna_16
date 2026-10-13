@@ -13,7 +13,7 @@ e.command(0,{type:'select',weapon:'tankCannon'});assert.ok(e.command(0,{type:'fi
 for(const [distance,expected]of [[0,149],[7.5,75],[15,0],[15.1,0]]){e=setup();p=e.players[0];p.heArmed=true;s=e.launch(p,'tankCannon');Object.assign(s,{x:1000+distance,y:3,z:800});e.explode(s);assert.equal(e.players[1].hp,255-expected);}
 // Actual swept vehicle collision, not only the explosion helper.
 e=setup();p=e.players[0];Object.assign(e.players[1],{x:1000,z:996,y:2});p.aim.tankCannon={yaw:0,pitch:0};s=e.launch(p,'tankCannon');Object.assign(s,{x:1000,z:1000,y:3});e.update(.01);assert.equal(e.players[1].hp,117);assert.equal(s.hp,0);
-e=setup('black_turtle');p=e.players[0];assert.equal(p.hp,165);assert.equal(B.VEHICLES.black_turtle.recon,280);assert.equal(B.weaponSpec(p,'uav').recon,420);assert.equal(B.weaponSpec(p,'missile').speed,B.WEAPONS.missile.speed*1.05);assert.equal(B.weaponSpec(p,'missile').directDamage,230);assert.equal(B.weaponSpec(p,'missile').recon,200);assert.equal(B.weaponSpec(p,'mg').fireInterval,B.WEAPONS.mg.fireInterval/1.1);assert.deepEqual(B.weaponSpec(p,'sam'),B.WEAPONS.sam);
+e=setup('black_turtle');p=e.players[0];assert.equal(p.hp,165);assert.equal(B.VEHICLES.black_turtle.recon,280);assert.equal(B.weaponSpec(p,'uav').recon,460);assert.equal(B.weaponSpec(p,'missile').speed,B.WEAPONS.missile.speed*1.05);assert.equal(B.weaponSpec(p,'missile').directDamage,230);assert.equal(B.weaponSpec(p,'missile').recon,180);assert.equal(B.weaponSpec(p,'mg').fireInterval,B.WEAPONS.mg.fireInterval/1.1);assert.deepEqual(B.weaponSpec(p,'sam'),B.WEAPONS.sam);
 for(const kind of ['missile','uav','sam']){p.selected=kind;e.command(0,{type:'aim',yaw:2,pitch:2});assert.ok(Math.abs(p.aim[kind].yaw-85*Math.PI/180)<1e-12);assert.equal(p.aim[kind].pitch,15*Math.PI/180);e.command(0,{type:'aim',yaw:-2,pitch:-2});assert.ok(Math.abs(p.aim[kind].yaw+85*Math.PI/180)<1e-12);assert.equal(p.aim[kind].pitch,-5*Math.PI/180);}
 p.selected='missile';s=e.launch(p,'missile');p.pilot=s.id;assert.ok(e.command(0,{type:'aim',yaw:Math.PI,pitch:1}).ok);assert.equal(s.pitch,1);assert.ok(Math.abs(s.yaw)>3); // pilot flight is not constrained by the launcher
 // All AI vehicle branches evade only a detected UAV that actually scouts their position.
@@ -25,6 +25,6 @@ const {Progress}=require('../app/src/main/assets/progress.js'),data=new Map(),st
 for(const kind of ['uav','missile','sam'])assert.ok(new B.Engine({vehicles:['black_turtle']}).players[0].aim[kind].pitch<=15*Math.PI/180);
 console.log('PASS tier2 research/purchase/equip/save restoration and launcher default elevation');
 // Turtle UAV sensor boundary changes independently of the vehicle's 280m sensor.
-e=setup('black_turtle');p=e.players[0];const scout=e.launch(p,'uav');Object.assign(scout,{x:1500,y:100,z:1500});assert.ok(e.inReconRange(0,{x:1920,y:100,z:1500}));assert.equal(e.inReconRange(0,{x:1920.01,y:100,z:1500}),false);assert.equal(B.VEHICLES.black_turtle.recon,280);
+e=setup('black_turtle');p=e.players[0];const scout=e.launch(p,'uav');Object.assign(scout,{x:1500,y:100,z:1500});assert.ok(e.inReconRange(0,{x:1960,y:100,z:1500}));assert.equal(e.inReconRange(0,{x:1960.01,y:100,z:1500}),false);assert.equal(B.VEHICLES.black_turtle.recon,280);
 const snap=e.snapshot(0);snap.own.aim.missile.pitch=999;assert.notEqual(p.aim.missile.pitch,999,'snapshots must not mutate simulation aim');
-console.log('PASS 420m Turtle UAV sensor boundary and immutable snapshots');
+console.log('PASS 460m Turtle UAV sensor boundary and immutable snapshots');

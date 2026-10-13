@@ -164,9 +164,9 @@ export class Renderer{
       const a=p.aim?.[g.userData.mainGun||g.userData.launcherWeapon||(g.userData.vehicleId==='b_tank'?'autocannon':selected)]||{yaw:p.yaw,pitch:0};
 
       if(g.userData.spade){const delta=g.userData.spadeAt===undefined?0:Math.max(0,Math.min(.1,t-g.userData.spadeAt));g.userData.spade.rotation.x=g.userData.spadeAt===undefined?(p.spadeDeployed?g.userData.spadeAngle:0):THREE.MathUtils.damp(g.userData.spade.rotation.x,p.spadeDeployed?g.userData.spadeAngle:0,5,delta);g.userData.spadeAt=t;}
-      if(g.userData.launcher)g.userData.launcher.rotation[g.userData.launcherAxis||'z']=-(a.yaw-p.yaw);
+      if(g.userData.launcher&&!B.vehicleSpec(g.userData.vehicleId).launcherFixed)g.userData.launcher.rotation[g.userData.launcherAxis||'z']=-(a.yaw-p.yaw);
       if(g.userData.turret)g.userData.turret.rotation[g.userData.turretAxis||'z']=-(a.yaw-p.yaw);
-      if(g.userData.barrel)g.userData.barrel.rotation.x=g.userData.mainGun||g.userData.launcherAxis?g.userData.barrelSign*a.pitch:(['artillery','autocannon'].includes(selected)||g.userData.vehicleId==='b_tank')?(g.userData.vehicleId==='b_tank'?-a.pitch:a.pitch):0;
+      if(g.userData.barrel)g.userData.barrel.rotation.x=g.userData.mainGun||g.userData.launcherAxis?g.userData.barrelSign*(a.pitch-B.gunRestPitch(g.userData.vehicleId)):(['artillery','autocannon'].includes(selected)||g.userData.vehicleId==='b_tank')?(g.userData.vehicleId==='b_tank'?-(a.pitch-B.gunRestPitch(g.userData.vehicleId)):a.pitch-B.gunRestPitch(g.userData.vehicleId)):0;
       if(g.userData.tracks&&g.userData.lastTravel!==`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`){(g.userData.tracks.belts?rollBelts:rollTracks)(g.userData.tracks,g.userData.tracks.belts?(p.trackTravel||p.wheelTravel||0):(p.wheelTravel||0));g.userData.lastTravel=`${p.wheelTravel}:${p.trackTravel?.left}:${p.trackTravel?.right}`;}
       return;}const a=p.aim[selected];g.userData.turret.rotation.y=-(a.yaw-p.yaw);g.userData.arm.rotation.x=a.pitch;g.userData.mg.rotation.x=selected==='mg'?a.pitch:0;for(const w of g.userData.wheels||[])w.rotation.x=-(p.wheelTravel||0)/1.65;}
   draw(view,t,dt=.016){if(!this.ready)return;if(view?.field?.mapId&&view.field.mapId!==this.landscapeMap)this.setMap(view.field.mapId);const demo=!view;
@@ -186,12 +186,14 @@ export class Renderer{
       effectIds.add(e.id);let g=this.effectMeshes.get(e.id);
       if(!g){
         if(e.kind==='crater'){g=new THREE.Mesh(new THREE.CircleGeometry(e.radius,16),new THREE.MeshBasicMaterial({color:'#4b473b',transparent:true,opacity:.4,depthWrite:false}));g.rotation.x=-Math.PI/2;}
+        else if(e.kind==='muzzle'){g=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({color:'#ffcf65',transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));}
         else if(e.kind==='explosion'&&this.explosions?.textures.size===3)g=this.explosions.create(e);
         else if(e.kind==='explosion')continue; // Start at current age when textures arrive.
         else g=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshBasicMaterial({color:'#fff4bf',transparent:true,opacity:.8,depthWrite:false}));
         this.effectMeshes.set(e.id,g);this.scene.add(g);
       }
       if(g.userData.explosion)this.explosions.update(g,e);
+      else if(e.kind==='muzzle'){g.position.set(e.x,e.y,e.z);g.scale.setScalar(e.radius*(1-e.age/e.life));g.material.opacity=Math.max(0,1-e.age/e.life);}
       else {g.position.set(e.x,e.y,e.z);if(e.kind!=='crater'){g.scale.setScalar(Math.max(.2,e.radius*(.2+e.age*.8)));g.material.opacity=Math.max(0,.7*(1-e.age/e.life));}}
     }
     for(const[id,g]of this.effectMeshes)if(!effectIds.has(id)){this.scene.remove(g);g.geometry.dispose();g.material.dispose();this.effectMeshes.delete(id);}

@@ -9,6 +9,9 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.*;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.util.Base64;
 import java.io.*;
 import java.net.*;
 import java.security.SecureRandom;
@@ -21,6 +24,10 @@ public class MainActivity extends Activity {
     private static final boolean REMOTE_ENABLED = false;
     private static final int PORT = 42316;
     private WebView game;
+    private TextToSpeech crewSpeech;
+    private boolean crewSpeechReady;
+    private boolean crewSpeechInitialized;
+    private boolean crewSpeechRequested;
     private RemoteHttp remoteHttp;
     private volatile LanLink link;
     private volatile int networkGeneration;
@@ -31,6 +38,12 @@ public class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         immersive();
+        crewSpeech = new TextToSpeech(this, status -> {crewSpeechInitialized=true;crewSpeechReady=status==TextToSpeech.SUCCESS&&crewSpeech.setLanguage(Locale.SIMPLIFIED_CHINESE)>=0;if(crewSpeechRequested)prepareCrewVoices();});
+        crewSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener(){
+            public void onStart(String id){}
+            public void onError(String id){emitCrewVoice(id,"");}
+            public void onDone(String id){try{File file=new File(getCacheDir(),"crew-ready-"+id+".wav");ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(file)){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}emitCrewVoice(id,Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP));}catch(IOException e){emitCrewVoice(id,"");}}
+        });
         game = new WebView(this); game.setBackgroundColor(0xff101a19);
         WebSettings s = game.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setAllowUniversalAccessFromFileURLs(false);
@@ -50,7 +63,7 @@ public class MainActivity extends Activity {
                     String path = Uri.parse(url).getPath().substring("/assets/".length());
                     if (path.matches("[a-zA-Z0-9_./-]+") && !path.contains("..")) {
                         try {
-                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".glb") ? "model/gltf-binary" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".woff") ? "font/woff" : "text/html";
+                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".glb") ? "model/gltf-binary" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".mp3") ? "audio/mpeg" : path.endsWith(".wav") ? "audio/wav" : path.endsWith(".webp") ? "image/webp" : path.endsWith(".woff") ? "font/woff" : "text/html";
                             return new WebResourceResponse(mime, "UTF-8", getAssets().open(path));
                         } catch (IOException ignored) {}
                     }
@@ -62,6 +75,8 @@ public class MainActivity extends Activity {
         game.addJavascriptInterface(new Bridge(), "Native");
         setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.FULL_UNLOCK_TEST ? "?fullUnlockTest=1" : BuildConfig.INFINITE_COINS ? "?infiniteCoins=1" : ""));
     }
+    private void emitCrewVoice(String role,String data){runOnUiThread(()->{if(game!=null)game.evaluateJavascript("window.onNativeCrewVoice && window.onNativeCrewVoice("+JSONObject.quote(role)+","+JSONObject.quote(data)+")",null);});}
+    private void prepareCrewVoices(){crewSpeechRequested=true;if(!crewSpeechReady){if(crewSpeechInitialized)for(String role:new String[]{"driver","gunner","loader","radio"})emitCrewVoice(role,"");return;}String[] roles={"driver","gunner","loader","radio"},texts={"驾驶员就位","炮长就位","二炮手就位","无线电员就位"};for(int i=0;i<roles.length;i++)crewSpeech.synthesizeToFile(texts[i],new Bundle(),new File(getCacheDir(),"crew-ready-"+roles[i]+".wav"),roles[i]);}
     private LanLink createLink(final int generation, final String code) {
         return new LanLink(new LanLink.Listener() {
             public void listening(int port) {
@@ -95,6 +110,7 @@ public class MainActivity extends Activity {
         return a;
     }
     public final class Bridge {
+        @JavascriptInterface public void prepareCrewVoices(){runOnUiThread(()->MainActivity.this.prepareCrewVoices());}
         @JavascriptInterface public void remoteRequest(String id,String path,String body,int timeout) {
             if (!REMOTE_ENABLED) {
                 final JSONObject e=new JSONObject();put(e,"id",id);put(e,"status",503);put(e,"body","");put(e,"error","远程联机暂时关闭");
@@ -134,6 +150,7 @@ public class MainActivity extends Activity {
         if(game!=null){game.onResume();game.resumeTimers();game.evaluateJavascript("window.onNativeResume && window.onNativeResume()",null);}
     }
     @Override protected void onDestroy() {
+        if(crewSpeech!=null){crewSpeech.stop();crewSpeech.shutdown();crewSpeech=null;}
         closeNetwork();
         if(remoteHttp!=null){remoteHttp.close();remoteHttp=null;}
         if(game!=null){game.removeJavascriptInterface("Native");game.stopLoading();game.destroy();game=null;}

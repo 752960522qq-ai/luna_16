@@ -17,7 +17,7 @@ assert.equal(B.VEHICLES.cougar_artillery.mass,44);
 assert.equal(B.weaponSpec({vehicleId:'hero_tank'},'tankCannon').cooldown,10);
 assert.equal(B.weaponSpec({vehicleId:'cougar_artillery'},'artillery').cooldown,30);
 assert.equal(B.weaponSpec({vehicleId:'black_turtle'},'missile').speed,155*1.05);
-assert.equal(B.weaponSpec({vehicleId:'black_turtle'},'uav').recon,420);
+assert.equal(B.weaponSpec({vehicleId:'black_turtle'},'uav').recon,460);
 assert.equal(B.weaponSpec({vehicleId:'longnose_artillery'},'mg').groundDamage,2);
 assert.equal(B.weaponSpec({vehicleId:'longnose_artillery'},'artillery').blastRadius,26);
 assert.equal(B.weaponSpec({vehicleId:'black_turtle'},'missile').blastRadius,12);

@@ -14,12 +14,8 @@
   const artilleryParams = p => {const spec=vehicleSpec(p.vehicleId),range=weaponSpec(p,'artillery').range,l=spec.muzzleLength||6.2,h=(spec.muzzleHeight||2.7)+l*Math.SQRT1_2,r=range-l*Math.SQRT1_2,speed=spec.artillery?.speed??Math.sqrt(GRAVITY*r*r/(h+r));return {speed,gravity:spec.artillery?.gravity??GRAVITY,minPitch:spec.minPitch??-3*Math.PI/180,maxPitch:spec.maxPitch??68*Math.PI/180,defaultPitch:.6};};
   const artilleryRanges=p=>{const q=artilleryParams(p),v=vehicleSpec(p.vehicleId);return {min:Math.ceil(flatRange(q.speed,q.minPitch,v,q.gravity)),minCurve:Math.ceil(flatRange(q.speed,q.maxPitch,v,q.gravity)),max:weaponSpec(p,'artillery').range,minDirect:Math.ceil(flatRange(q.speed,q.minPitch,v,q.gravity))};};
   // Try the high arc first, then the low arc, using the actual muzzle position.
-  function solveArtillery(p,target){const q=artilleryParams(p),spec=vehicleSpec(p.vehicleId),range=dist(p,target),l=spec.muzzleLength||6.2,h=spec.muzzleHeight||2.7;
-    if(range<1||range>weaponSpec(p,'artillery').range+.01)return null;
-    for(const sign of [1,-1]){let pitch=sign===1?1.05:.08,valid=true;
-      for(let i=0;i<20;i++){const r=Math.max(.01,range-l*Math.cos(pitch)),height=terrain(target.x,target.z)-(p.y+h+l*Math.sin(pitch)),v2=q.speed*q.speed,disc=v2*v2-q.gravity*(q.gravity*r*r+2*height*v2);if(disc<0){valid=false;break;}pitch=Math.atan((v2+sign*Math.sqrt(disc))/(q.gravity*r));}
-      if(valid&&pitch>=q.minPitch&&pitch<=q.maxPitch)return {yaw:Math.atan2(target.x-p.x,p.z-target.z),pitch};
-    }return null;
+  function solveArtillery(p,target){const q=artilleryParams(p),range=dist(p,target);if(range<1||range>weaponSpec(p,'artillery').range+.01)return null;
+    for(const sign of [1,-1]){let pitch=sign===1?1.05:.08,yaw=Math.atan2(target.x-p.x,p.z-target.z),valid=true;for(let i=0;i<30;i++){const candidate={...p,yaw:vehicleSpec(p.vehicleId).hullAim?yaw:p.yaw,aim:{...p.aim,artillery:{yaw,pitch}}},start=muzzle(candidate,'artillery'),r=dist(start,target),h=terrain(target.x,target.z)-start.y,v2=q.speed*q.speed,disc=v2*v2-q.gravity*(q.gravity*r*r+2*h*v2);if(disc<0){valid=false;break;}pitch=Math.atan((v2+sign*Math.sqrt(disc))/(q.gravity*r));yaw=Math.atan2(target.x-start.x,start.z-target.z);}if(valid&&pitch>=q.minPitch&&pitch<=q.maxPitch)return {yaw,pitch};}return null;
   }
   const WEAPONS = Object.freeze(Object.fromEntries(Object.entries({
     uav: { name:'无人机', cooldown:10, speed:58, hp:27, life:40, recon:400, directDamage:30, blastRadius:15 },
@@ -41,17 +37,18 @@
   function copyAim(aim){const result={};for(const key of Object.keys(aim))result[key]={yaw:aim[key].yaw,pitch:aim[key].pitch};return result;}
   const VEHICLES = Object.freeze({
     handlv_missile:vehicleDefinition({id:DEFAULT_VEHICLE,tier:1,branch:'missile',researchCost:0,name:'悍驴导弹车',hp:100,speed:113/3.6,reverseSpeed:10/3.6,recon:300,intelLife:5,dimensions:Object.freeze({length:4.84,width:2.557,height:2.48}),muzzleHeight:1.65,muzzleLength:1.8,
-      weapons:Object.freeze(['uav','missile','sam','mg']),price:0,model:'m1097',description:'初始导弹车，兼顾空中侦察、精确打击与近程防空。'}),
-    longnose_artillery:vehicleDefinition({id:'longnose_artillery',tier:4,branch:'artillery',researchCost:2500,minPitch:-3*Math.PI/180,maxPitch:68*Math.PI/180,name:'长鼻熊自行火炮',hp:300,speed:60/3.6,reverseSpeed:4/3.6,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.716,height:3.343}),muzzleHeight:2.7,muzzleLength:6.2,price:5000,artillery:Object.freeze({range:1300,directDamage:260,nearDamage:[0,260]}),weaponOverrides:Object.freeze({uav:{hp:60,directDamage:80},mg:{airDamage:18,groundDamage:12}}),weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图落点瞄准、无人机侦察与近程机枪防御。'}),
-    kfz_artillery:vehicleDefinition({id:'kfz_artillery',tier:1,branch:'artillery',researchCost:0,minPitch:-3*Math.PI/180,maxPitch:72*Math.PI/180,name:'跳虫KFZ自行火炮',hp:100,speed:42/3.6,reverseSpeed:10/3.6,recon:230,intelLife:8,dimensions:Object.freeze({length:4.84,width:2.16,height:2.40}),muzzleHeight:1.85,muzzleLength:2.3,price:300,weapons:Object.freeze(['artillery','reconPlane','bomber']),model:'kfz_grille',hullAim:true,artillery:Object.freeze({name:'跳虫火炮',cooldown:6.5,range:900,directDamage:80,nearDamage:[0,80],blastRadius:17}),description:'固定火炮通过车体转向瞄准；可呼叫直线飞越侦察机或接管俯冲轰炸机投弹。'}),
-    b_tank:vehicleDefinition({id:'b_tank',tier:1,branch:'tank',researchCost:0,name:'B号坦克',hp:150,speed:44/3.6,reverseSpeed:9/3.6,recon:200,intelLife:5,immunity:10,minPitch:-9*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:4.81,width:2.28,height:2.02}),muzzleHeight:1.65,muzzleLength:2.1,price:200,weapons:Object.freeze(['autocannon','repair','observation']),model:'panzer_ii',description:'20mm机炮配合车长扇形侦察；免疫低于10点伤害，每局可停车维修一次。'}),
-    hero_tank:vehicleDefinition({id:'hero_tank',tier:2,branch:'tank',researchCost:1000,name:'战斗英雄号',hp:230,speed:40/3.6,reverseSpeed:15/3.6,recon:220,intelLife:5,immunity:15,minPitch:-3*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:9.9,width:3.32,height:2.93}),muzzleHeight:2.05,muzzleLength:5,price:1000,weapons:Object.freeze(['tankCannon','observation','highExplosive']),model:'is2',description:'122mm火炮伤害90、爆炸半径5米、装填10秒；免疫低于15点伤害，可观察前方扇区或装填下一发高爆弹。'}),
-    cougar_artillery:vehicleDefinition({id:'cougar_artillery',tier:2,branch:'artillery',researchCost:1000,name:'美洲狮自行榴弹炮',hp:135,speed:48/3.6,reverseSpeed:10/3.6,recon:280,intelLife:8,mass:44,minPitch:-5*Math.PI/180,maxPitch:65*Math.PI/180,turretYaw:30*Math.PI/180,dimensions:Object.freeze({length:9.75,width:3.58,height:3.55}),muzzleHeight:2.2,muzzleLength:5.1,price:1000,weapons:Object.freeze(['artillery','uav','spade','mg']),artillery:Object.freeze({name:'M47 203.2mm榴弹炮',caliber:203.2,cooldown:30,speed:711,range:1000,directDamage:140,nearDamage:[0,140],blastRadius:20,gravity:711*711*(1000+2.2)/(1000-5.1*Math.SQRT1_2)**2}),weaponOverrides:Object.freeze({uav:{recon:420},mg:{fireInterval:.09/1.1}}),model:'m53m55',preferredDistance:850,description:'可发射常规高爆弹，远距离曲射威力极强，适合远程火力压制。'}),
-    black_turtle:vehicleDefinition({id:'black_turtle',tier:2,branch:'missile',researchCost:1000,name:'黑甲鱼',hp:130,speed:62/3.6,reverseSpeed:10/3.6,recon:280,intelLife:5,launcherMinPitch:-5*Math.PI/180,launcherMaxPitch:15*Math.PI/180,launcherYaw:85*Math.PI/180,dimensions:Object.freeze({length:6.61,width:3.10,height:2.49}),muzzleHeight:2.3,muzzleLength:1.8,price:1000,weapons:Object.freeze(['uav','missile','sam','mg']),weaponOverrides:Object.freeze({uav:{recon:420},missile:{directDamage:95,speed:155*1.05,recon:200},mg:{fireInterval:.09/1.1}}),model:'shturm',description:'二级履带导弹车，发射架水平旋转±85°，携带无人机、巡航导弹、防空弹和高射机枪。'})
+      launcherFixed:true,weaponOverrides:Object.freeze({uav:{recon:380,life:36,intelLife:7},missile:{recon:150,life:8,intelLife:3}}),weapons:Object.freeze(['uav','missile','sam','mg']),price:0,model:'m1097',description:'初始导弹车，兼顾空中侦察、精确打击与近程防空。'}),
+    longnose_artillery:vehicleDefinition({id:'longnose_artillery',tier:6,branch:'artillery',researchCost:2500,minPitch:-3*Math.PI/180,maxPitch:68*Math.PI/180,name:'长鼻熊自行火炮',hp:255,speed:60/3.6,reverseSpeed:4/3.6,recon:250,intelLife:8,dimensions:Object.freeze({length:11.91,width:3.716,height:3.343}),muzzleHeight:2.7,muzzleLength:6.2,price:5000,artillery:Object.freeze({range:1300,directDamage:21,nearDamage:[0,21],blastRadius:26}),weaponOverrides:Object.freeze({uav:{hp:60,directDamage:80,recon:400,life:38,intelLife:7},mg:{airDamage:18,groundDamage:2}}),weapons:Object.freeze(['artillery','uav','mg']),model:'2s19',description:'152mm火炮搭配地图落点瞄准、无人机侦察与近程机枪防御。'}),
+    kfz_artillery:vehicleDefinition({id:'kfz_artillery',tier:2,branch:'artillery',researchCost:0,minPitch:-3*Math.PI/180,maxPitch:72*Math.PI/180,name:'跳虫KFZ自行火炮',hp:110,speed:42/3.6,reverseSpeed:10/3.6,recon:230,intelLife:8,dimensions:Object.freeze({length:4.84,width:2.16,height:2.40}),muzzleHeight:1.85,muzzleLength:2.3,price:300,weapons:Object.freeze(['artillery','reconPlane','bomber']),model:'kfz_grille',hullAim:true,artillery:Object.freeze({name:'跳虫火炮',cooldown:6.5,range:900,directDamage:115,nearDamage:[0,115],blastRadius:19}),description:'固定火炮通过车体转向瞄准；可呼叫直线飞越侦察机或接管俯冲轰炸机投弹。'}),
+    b_tank:vehicleDefinition({id:'b_tank',tier:1,branch:'tank',researchCost:0,name:'B号坦克',hp:170,speed:44/3.6,reverseSpeed:9/3.6,recon:200,intelLife:5,immunity:10,minPitch:-9*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:4.81,width:2.28,height:2.02}),muzzleHeight:1.65,muzzleLength:2.1,price:200,weapons:Object.freeze(['autocannon','repair','observation']),model:'panzer_ii',description:'20mm机炮配合车长扇形侦察；免疫低于10点伤害，每局可停车维修一次。'}),
+    hero_tank:vehicleDefinition({id:'hero_tank',tier:3,branch:'tank',researchCost:1000,name:'战斗英雄号',hp:285,speed:40/3.6,reverseSpeed:15/3.6,recon:220,intelLife:5,immunity:15,minPitch:-3*Math.PI/180,maxPitch:20*Math.PI/180,dimensions:Object.freeze({length:9.9,width:3.32,height:2.93}),muzzleHeight:2.05,muzzleLength:5,price:1000,weapons:Object.freeze(['tankCannon','observation','highExplosive']),weaponOverrides:Object.freeze({tankCannon:{directDamage:125},highExplosive:{directDamage:135}}),model:'is2',description:'122mm火炮伤害125、爆炸半径5米、装填10秒；免疫低于15点伤害，可观察前方扇区或装填下一发高爆弹。'}),
+    cougar_artillery:vehicleDefinition({id:'cougar_artillery',tier:4,branch:'artillery',researchCost:1000,name:'美洲狮自行榴弹炮',hp:165,speed:48/3.6,reverseSpeed:10/3.6,recon:280,intelLife:8,mass:44,minPitch:-5*Math.PI/180,maxPitch:65*Math.PI/180,turretYaw:30*Math.PI/180,dimensions:Object.freeze({length:9.75,width:3.58,height:3.55}),muzzleHeight:2.2,muzzleLength:5.1,price:1000,weapons:Object.freeze(['artillery','uav','spade','mg']),artillery:Object.freeze({name:'M47 203.2mm榴弹炮',caliber:203.2,cooldown:30,speed:711,range:1000,directDamage:160,nearDamage:[0,160],blastRadius:25,gravity:711*711*(1000+2.2)/(1000-5.1*Math.SQRT1_2)**2}),weaponOverrides:Object.freeze({uav:{recon:420,life:36,intelLife:7},mg:{fireInterval:.09/1.1}}),model:'m53m55',preferredDistance:850,description:'可发射常规高爆弹，远距离曲射威力极强，适合远程火力压制。'}),
+    black_turtle:vehicleDefinition({id:'black_turtle',tier:6,branch:'missile',researchCost:1000,name:'黑甲鱼',hp:165,speed:62/3.6,reverseSpeed:10/3.6,recon:280,intelLife:5,launcherMinPitch:-5*Math.PI/180,launcherMaxPitch:15*Math.PI/180,launcherYaw:85*Math.PI/180,dimensions:Object.freeze({length:6.61,width:3.10,height:2.49}),muzzleHeight:2.3,muzzleLength:1.8,price:1000,weapons:Object.freeze(['uav','missile','sam','mg']),weaponOverrides:Object.freeze({uav:{recon:460,life:40,intelLife:8},missile:{directDamage:230,directRadius:10,nearDamage:[20,35],blastRadius:12,speed:155*1.05,recon:180,life:10,intelLife:4},mg:{fireInterval:.09/1.1}}),model:'shturm',description:'六级履带导弹车，发射架水平旋转±85°，携带无人机、巡航导弹、防空弹和高射机枪。'})
   });
   const vehicleSpec = id => VEHICLES[id] || VEHICLES[DEFAULT_VEHICLE];
   const weaponSpec=(p,kind)=>{const spec={...WEAPONS[kind],...(kind==='artillery'?vehicleSpec(p.vehicleId).artillery:{}),...(vehicleSpec(p.vehicleId).weaponOverrides?.[kind]||{})};if(kind==='artillery'){spec.speed=vehicleSpec(p.vehicleId).artillery?.speed??Math.sqrt(GRAVITY*spec.range);if(p.spadeDeployed)spec.cooldown*=.8;}spec.cooldown*=Crew.cooldown(p.crew,kind);if(spec.reload)spec.reload*=Crew.cooldown(p.crew,kind);return spec;};
   const BRANCHES=Object.freeze({missile:'导弹车',artillery:'自行火炮',tank:'坦克'});
+  const COUNTER_BRANCH=Object.freeze({missile:'tank',tank:'artillery',artillery:'missile'}),PRIMARY_BRANCH=Object.freeze({missile:'missile',tankCannon:'tank',autocannon:'tank',artillery:'artillery'});
   const matchCandidates=id=>Object.values(VEHICLES).filter(v=>Math.abs(v.tier-vehicleSpec(id).tier)<=1).map(v=>v.id);
   const C = Object.freeze(Object.fromEntries(Object.entries(WEAPONS).map(([id,spec])=>[id,spec.cooldown])));
   const PITCH = {tankCannon:[-3*Math.PI/180,20*Math.PI/180],highExplosive:[0,0],autocannon:[-9*Math.PI/180,20*Math.PI/180],spade:[0,0],repair:[0,0],observation:[0,0], reconPlane:[0,0],bomber:[-.5,.5],bomb:[0,0],uav: [.06, 1.25], missile: [-1.25, 1.25], artillery: [ARTILLERY.curve.minPitch, ARTILLERY.curve.maxPitch], sam: [-1.25, 1.4], mg: [-.18, 1.4] };
@@ -173,9 +170,19 @@
     const f = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy + (p.z - a.z) * dz) / (dx * dx + dy * dy + dz * dz || 1), 0, 1);
     return Math.hypot(a.x + dx * f - p.x, a.y + dy * f - p.y, a.z + dz * f - p.z);
   }
+  const GUN_MOUNTS=Object.freeze({"b_tank": {"tip": [-0.37286232, 1.75698187, -2.21099448], "pivot": [-0.37286232, 1.7569769, -1.06300521], "turret": [-0.13089389, 1.42556095, -0.35088652]}, "hero_tank": {"tip": [-0.00442946, 2.07301232, -4.93580917], "pivot": [-0.08338471, 2.09389994, -0.6096688], "turret": [0, 1.80684084, 0.54649014]}, "cougar_artillery": {"tip": [1.439e-05, 2.23572891, -5.04123516], "pivot": [0, 2.28, 0.8], "turret": [0, 1.25, 1.8]}, "longnose_artillery": {"tip": [-0.0016339, 3.21037536, -5.93841519], "pivot": [-0.01095612, 2.56255991, 1.05016545], "turret": [-0.01095612, 1.94695923, 2.58916715]}, "kfz_artillery": {"tip": [0.02950134, 1.52535029, -2.41865151], "pivot": [0.02734613, 1.4664818, -0.34476637], "turret": [0, 0, 0]}});
+  function gunRestPitch(id){const m=GUN_MOUNTS[id];return m?Math.atan2(m.tip[1]-m.pivot[1],m.pivot[2]-m.tip[2]):0;}
+  const GUN_CONTACTS={b_tank:[0,1.11392057,-2.405,2.405],hero_tank:[0,1.55689502,-1.93923151,4.69424868],cougar_artillery:[-.00011039,1.73921049,-3.05528617,3.05217385],kfz_artillery:[-.00246984,1.04523528,-2.20066452,2.33878517]};
+  function groundGunPoint(p,x,y,z){const contact=GUN_CONTACTS[p.vehicleId],ch=Math.cos(p.yaw),sh=Math.sin(p.yaw);if(!contact)return {x:p.x+x*ch-z*sh,y:p.y+y,z:p.z+x*sh+z*ch};
+    const [minY,width,front,rear]=contact,mid=(front+rear)/2,at=(lx,lz)=>terrain(p.x+ch*lx-sh*lz,p.z+sh*lx+ch*lz),pitch=-Math.atan2(at(0,rear)-at(0,front),rear-front),roll=Math.atan2(at(width,mid)-at(-width,mid),2*width),cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);
+    const rotate=(lx,ly,lz)=>{const xx=lx*cr-ly*sr,yy=lx*sr+ly*cr,yp=yy*cp-lz*sp,zp=yy*sp+lz*cp;return {x:xx*ch-zp*sh,y:yp,z:xx*sh+zp*ch};};let support=-Infinity;
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){const q=rotate((i-1)*width,minY,j===0?front:j===1?mid:rear);support=Math.max(support,terrain(p.x+q.x,p.z+q.z)-q.y);}
+    const q=rotate(x,y,z);return {x:p.x+q.x,y:p.y+support-terrain(p.x,p.z)+.15+q.y,z:p.z+q.z};
+  }
   function muzzle(p, kind) {
-    const a = p.aim[kind], d = direction(a.yaw, a.pitch),spec=vehicleSpec(p.vehicleId),length=['artillery','autocannon','tankCannon'].includes(kind)?(spec.muzzleLength||6.2):1.8,height=['artillery','autocannon','tankCannon'].includes(kind)?(spec.muzzleHeight||2.7):(spec.launcherYaw!==undefined?spec.muzzleHeight:1.65);
-    return { x: p.x + d.x * length, y: terrain(p.x, p.z) + height + d.y * length, z: p.z + d.z * length };
+    const a = vehicleSpec(p.vehicleId).launcherFixed&&['missile','sam','uav'].includes(kind)?{yaw:p.yaw,pitch:DEFAULT_PITCH[kind]}:p.aim[kind], d = direction(a.yaw, a.pitch),spec=vehicleSpec(p.vehicleId),length=['artillery','autocannon','tankCannon'].includes(kind)?(spec.muzzleLength||6.2):1.8,height=['artillery','autocannon','tankCannon'].includes(kind)?(spec.muzzleHeight||2.7):(spec.launcherYaw!==undefined?spec.muzzleHeight:1.65);
+    const mount=GUN_MOUNTS[p.vehicleId];if(mount&&['artillery','tankCannon','autocannon'].includes(kind)){const [px,py,pz]=mount.pivot,[tx,ty,tz]=mount.turret,[mx,my,mz]=mount.tip,angle=a.pitch-gunRestPitch(p.vehicleId),c=Math.cos(angle),sn=Math.sin(angle),y=py+(my-py)*c-(mz-pz)*sn,z=pz+(my-py)*sn+(mz-pz)*c,x=mx,relative=spec.hullAim?0:a.yaw-p.yaw,cy=Math.cos(relative),sy=Math.sin(relative),rx=tx+(x-tx)*cy-(z-tz)*sy,rz=tz+(x-tx)*sy+(z-tz)*cy,ch=Math.cos(p.yaw),sh=Math.sin(p.yaw);return groundGunPoint(p,rx,y,rz);}
+    return { x: p.x + d.x * length, y: p.y + height + d.y * length, z: p.z + d.z * length };
   }
   function ballistic(p, maxPoints = 220) {
     const a = p.aim.artillery, start = muzzle(p, 'artillery'), d = direction(a.yaw, a.pitch), params=artilleryParams(p),speed=params.speed,gravity=params.gravity;
@@ -234,7 +241,7 @@
     crewVoice(owner,kind,data={}){this.crewEvents.push({id:++this.id,owner,kind,t:this.t,...data});if(this.crewEvents.length>128)this.crewEvents.shift();}
     sound(kind, p, owner) { this.sounds.push({ id: ++this.id, kind, x: p.x, y: p.y, z: p.z, owner, t: this.t }); if(this.sounds.length>64)this.sounds.shift(); }
     effect(p, kind, owner, radius = 24, visualSize = radius<18?'small':'medium') {
-      const life=kind==='crater'?12:kind==='explosion'?({small:1.4,medium:1.9,large:2.6}[visualSize]||1.9):1.15;
+      const life=kind==='muzzle'?.12:kind==='crater'?12:kind==='explosion'?({small:1.4,medium:1.9,large:2.6}[visualSize]||1.9):1.15;
       this.effects.push({id:++this.id,x:p.x,y:p.y,z:p.z,kind,owner,radius,visualSize,
         visualScale:visualSize==='small'&&radius<=5?.35:1,
         grounded:kind==='explosion'&&p.y-terrain(p.x,p.z)<3,born:this.t,life});
@@ -274,7 +281,7 @@
         if(!this.hasWeapon(p,'artillery')||p.pilot||p.selected!=='artillery'||!Number.isFinite(action.x)||!Number.isFinite(action.z))return {ok:false,reason:'请先选择火炮地图瞄准'};
         const target={x:clamp(action.x,0,W),z:clamp(action.z,0,H)},aim=solveArtillery(p,target);
         if(!aim)return {ok:false,reason:`落点超出有效俯仰或射程（最大${weaponSpec(p,'artillery').range}m）`};
-        p.aim.artillery={...aim,yaw:vehicleSpec(p.vehicleId).hullAim?p.yaw:aim.yaw};if(vehicleSpec(p.vehicleId).hullAim)p.hullAimYaw=aim.yaw;return {ok:true};
+        p.aim.artillery={...aim,yaw:vehicleSpec(p.vehicleId).hullAim?p.yaw:aim.yaw};if(vehicleSpec(p.vehicleId).hullAim)p.hullAimYaw=aim.yaw;if(this.t>=(p.mapVoiceAfter||0)){this.crewVoice(p.id,'mapAim');p.mapVoiceAfter=this.t+15;}return {ok:true};
       }
       if (k === 'aim') return this.setAim(p, action);
       if (this.t < this.countdown) return { ok: false, reason: '正在进入战场' };
@@ -306,7 +313,7 @@
       if(weapon==='autocannon'){if(p.reloadUntil>this.t)return {ok:false,reason:'机炮换弹中'};if(p.cd.autocannon>0)return {ok:false,reason:'机炮射击间隔'};const shot=this.launch(p,weapon);p.ammo--;p.cd.autocannon=weaponSpec(p,'autocannon').cooldown;p.stats.launches++;if(!p.ammo){p.reloadUntil=this.t+weaponSpec(p,'autocannon').reload;this.sound('reload',p,id);}return {ok:true,id:shot.id};}
       if (weapon === 'mg') return { ok: false, reason: '按住开火持续射击' };
       if (weapon!=='tankCannon'&&(Math.abs(p.speed) > 2 || Math.abs(p.drive.throttle) > .1)) return { ok: false, reason: '停车后才能发射' };
-      if (p.cd[weapon] > 0) return { ok: false, reason: '装备冷却中' };
+      if(p.cd[weapon]>0){if(weapon==='artillery'&&action.manualPress){p.reloadPresses=(p.reloadPresses||[]).filter(t=>this.t-t<2);p.reloadPresses.push(this.t);if(p.reloadPresses.length>=3&&this.t>=(p.urgentAfter||0)){this.crewVoice(p.id,'urgentReload');p.urgentAfter=this.t+10;p.reloadPresses=[];}}return {ok:false,reason:'装备冷却中'};}
       if (weapon === 'uav' && this.shots.some(s => s.kind === 'uav' && s.owner === id && s.hp > 0)) return { ok: false, reason: '点击接管无人机，继续操纵现有飞机' };
       let airTarget=null;
       if (weapon==='sam') {
@@ -317,10 +324,10 @@
       if(weapon==='artillery'&&vehicleSpec(p.vehicleId).hullAim){const desired=p.hullAimYaw??p.aim.artillery.yaw;if(Math.abs(wrap(desired-p.yaw))>.04){p.hullAimYaw=desired;return {ok:false,reason:'车体正在转向，请对准目标后开火'};}p.aim.artillery.yaw=p.yaw;}
       // Apply physical launch limits even for automatic SAM and AI-generated aims.
       this.setAim(p,p.aim[weapon]);
-      const s = this.launch(p, weapon); p.cd[weapon] = weaponSpec(p,weapon).cooldown; p.stats.launches++;
+      const s = this.launch(p, weapon);if(weapon==='artillery')p.reloadPresses=[]; p.cd[weapon] = weaponSpec(p,weapon).cooldown; p.stats.launches++;
       if(airTarget)s.targetId=airTarget.id;
       if (['uav','missile','bomber'].includes(weapon)) { p.pilot = s.id; p.drive = { throttle: 0, steer: 0 }; }
-      this.note(id, { reconPlane:'侦察机已呼叫 · 高空直线飞越',bomber:'轰炸机已呼叫 · 手动飞行，按开火投弹',uav:`无人机起飞 · ${weaponSpec(p,'uav').recon}m 共享侦察`, missile:'导弹出筒 · 手动飞行 / 200m 侦察', tankCannon:'122mm炮弹出膛',artillery:'炮弹出膛 · 白色尾迹持续8秒', sam:'防空导弹自动锁定 · 25秒装填' }[weapon], weapon === 'uav' ? 'scout' : 'attack');
+      this.note(id, { reconPlane:'侦察机已呼叫 · 高空直线飞越',bomber:'轰炸机已呼叫 · 手动飞行，按开火投弹',uav:`无人机起飞 · ${weaponSpec(p,'uav').recon}m 共享侦察`, missile:`导弹出筒 · 手动飞行 / ${weaponSpec(p,'missile').recon}m 侦察`, tankCannon:'122mm炮弹出膛',artillery:'炮弹出膛 · 白色尾迹持续8秒', sam:'防空导弹自动锁定 · 25秒装填' }[weapon], weapon === 'uav' ? 'scout' : 'attack');
       return { ok: true, id: s.id };
     }
     hasWeapon(p,kind) { return Object.prototype.hasOwnProperty.call(WEAPONS,kind)&&p.weapons.includes(kind); }
@@ -339,18 +346,20 @@
     }
     launch(p, kind) {
       p.revealedUntil=this.t+10;
-      const spec=weaponSpec(p,kind==='bullet'?'mg':kind),start = muzzle(p, kind), a = p.aim[kind], speed = kind==='artillery'?artilleryParams(p).speed:spec.speed;
+      const spec=weaponSpec(p,kind==='bullet'?'mg':kind),start = muzzle(p, kind), a = vehicleSpec(p.vehicleId).launcherFixed&&['missile','sam','uav'].includes(kind)?{yaw:p.yaw,pitch:DEFAULT_PITCH[kind]}:p.aim[kind], speed = kind==='artillery'?artilleryParams(p).speed:spec.speed;
       const d = direction(a.yaw, a.pitch);
       const s = { id: ++this.id, owner: p.id, kind, ...start, yaw: a.yaw, pitch: a.pitch, vx: d.x * speed, vy: d.y * speed, vz: d.z * speed,
         speed, hp: spec.hp || 1, born: this.t, ttl: spec.life,
         distance: 0, sampleAt: this.t, noticed: 0 };
       if(['reconPlane','bomber'].includes(kind)){const back=kind==='reconPlane'?600:250;s.x=p.x-d.x*back;s.z=p.z-d.z*back;s.y=Math.max(180,surface(p.x,p.z)+160);s.pitch=0;s.vx=Math.sin(a.yaw)*speed;s.vy=0;s.vz=-Math.cos(a.yaw)*speed;s.bombs=kind==='bomber'?1:0;}
       this.shots.push(s);
-      s.blastSpec=kind==='tankCannon'&&p.heArmed?{...spec,directDamage:95,blastRadius:15,nearDamage:[0,95],directRadius:0}:spec;
+      s.blastSpec=kind==='tankCannon'&&p.heArmed?{...spec,directDamage:weaponSpec(p,'highExplosive').directDamage,blastRadius:15,nearDamage:[0,weaponSpec(p,'highExplosive').directDamage],directRadius:0}:spec;
       if(kind==='tankCannon')p.heArmed=false;
       if(kind==='artillery'&&p.vehicleId==='cougar_artillery')s.heavyArtillery=true;
       if(kind==='artillery'){s.artilleryMode=p.artilleryMode;s.blastSpec=spec;}
       if(['uav','missile','reconPlane','bomber'].includes(kind))this.crewVoice(p.id,'launch',{targetKind:kind});
+      if(['artillery','tankCannon','autocannon'].includes(kind))this.effect(start,'muzzle',p.id,kind==='autocannon'?.6:1.8);
+      if(kind==='artillery')this.crewVoice(p.id,'artilleryFire');
       this.sound(s.heavyArtillery?'artillery-heavy':kind==='autocannon'?'autocannon':kind==='tankCannon'?'tankCannon':kind,start,p.id);
       if (!['bullet','autocannon'].includes(kind)) this.trails.push({ id: s.id, owner: p.id, kind, points: [{ ...start, t: this.t, d: 0 }] });
       return s;
@@ -393,16 +402,16 @@
       const yaw=Math.atan2(x-s.x,s.z-z),pitch=Math.atan2(y-s.y,Math.hypot(x-s.x,z-s.z));
       s.yaw=wrap(s.yaw+clamp(wrap(yaw-s.yaw),-3.4*dt,3.4*dt));s.pitch+=clamp(pitch-s.pitch,-3.4*dt,3.4*dt);
     }
-    inReconRange(id,target,crewOnly=false){
-      const p=this.players[id];if(!p||p.hp<=0)return false;
-      const mods=Crew.modifiers(p.crew),hidden=Recon.hidden(target,BUSHES,this.t),cap=hidden?50:Infinity;
-      const visible=(sensor,range,flat=false)=>((flat?dist(sensor,target):dist3(sensor,target))<=Math.min(range,cap))&&lineOfSight(sensor,target);
-      const eye={x:p.x,y:p.y+4,z:p.z};
-      if(p.observationUntil>this.t&&Math.abs(wrap(Math.atan2(target.x-p.x,p.z-target.z)-p.observationYaw))<=Math.PI/4&&visible(eye,500*mods.recon))return true;
-      if(visible(eye,vehicleSpec(p.vehicleId).recon*mods.recon))return true;
-      for(const shot of this.shots){if(shot.owner!==id||shot.hp<=0||!(crewOnly?['uav']:['uav','missile','reconPlane','bomber']).includes(shot.kind))continue;if(visible(shot,(weaponSpec(p,shot.kind).recon||reconRange(shot.kind))*mods.recon,shot.kind==='reconPlane'))return true;}
-      return false;
+    reconDetection(id,target,crewOnly=false){const p=this.players[id];if(!p||p.hp<=0)return null;const mods=Crew.modifiers(p.crew),cap=Recon.hidden(target,BUSHES,this.t)?50:Infinity;
+      const visible=(sensor,range,flat=false)=>(flat?dist(sensor,target):dist3(sensor,target))<=Math.min(range,cap)&&lineOfSight(sensor,target);let found=null;
+      const accept=(source,life)=>{const retain=life*mods.intel;if(!found||retain>found.retain)found={source,retain};},eye={x:p.x,y:p.y+4,z:p.z};
+      if(p.observationUntil>this.t&&Math.abs(wrap(Math.atan2(target.x-p.x,p.z-target.z)-p.observationYaw))<=Math.PI/4&&visible(eye,500*mods.recon))accept('observation',vehicleSpec(p.vehicleId).intelLife);
+      if(visible(eye,vehicleSpec(p.vehicleId).recon*mods.recon))accept('vehicle',vehicleSpec(p.vehicleId).intelLife);
+      for(const shot of this.shots){if(shot.owner!==id||shot.hp<=0||!(crewOnly?['uav']:['uav','missile','reconPlane','bomber']).includes(shot.kind))continue;const spec=weaponSpec(p,shot.kind);if(Number.isFinite(shot.born)&&this.t-shot.born>=spec.life)continue;if(visible(shot,spec.recon*mods.recon,shot.kind==='reconPlane'))accept(shot.kind,spec.intelLife??vehicleSpec(p.vehicleId).intelLife);}
+      return found;
     }
+    sensorIntelLife(id,target){return this.reconDetection(id,target)?.retain??intelLife(this.players[id]);}
+    inReconRange(id,target,crewOnly=false){return this.reconDetection(id,target,crewOnly)!==null;}
 
     update(dt) {
       if (this.over || !Number.isFinite(dt) || dt <= 0) return; dt = Math.min(.05, dt); this.t += dt;
@@ -411,12 +420,14 @@
       for (const tr of this.trails) tr.points = tr.points.filter(p => this.t - p.t < TRAIL_LIFE);
       this.trails = this.trails.filter(tr => tr.points.length);
       if (this.t < this.countdown) return;
-      if(!this.battleAnnounced){this.battleAnnounced=true;for(const p of this.players)this.crewVoice(p.id,'start');}
+      if(!this.battleAnnounced){this.battleAnnounced=true;for(const p of this.players){this.crewVoice(p.id,'start');this.crewVoice(p.id,'ready',{roles:['driver','gunner','loader','radio'].filter(role=>Crew.has(p.crew,role))});}}
       if(this.mode==='ai')this.runBots(dt);
       for (const p of this.players) {
         if(p.hp<=0){p.speed=0;p.mg=false;p.drive={throttle:0,steer:0};continue;}
         const startX=p.x,startZ=p.z,startYaw=p.yaw,spec=vehicleSpec(p.vehicleId),mods=Crew.modifiers(p.crew);
+        const artilleryWasLoading=p.cd.artillery>0;
         for (const k of Object.keys(C)) p.cd[k] = Math.max(0, p.cd[k] - dt);
+        if(artilleryWasLoading&&p.cd.artillery===0&&this.hasWeapon(p,'artillery'))this.crewVoice(p.id,'reloadReady');
         if(p.reloadUntil&&this.t>=p.reloadUntil){p.ammo=10;p.reloadUntil=0;}
         if(p.repairUntil){p.speed=0;p.drive={throttle:0,steer:0};p.mg=false;if(this.t>=p.repairUntil){p.hp=p.maxHp;p.repairUntil=0;this.note(p.id,'维修完成 · 耐久已恢复','info');}}
         p.intel.clues = p.intel.clues.filter(c => c.until > this.t);
@@ -439,6 +450,7 @@
           if (vehicleClear(nx, nz,p)) { p.x = nx; p.z = nz; } else if (vehicleClear(nx, p.z,p)) p.x = nx; else if (vehicleClear(p.x, nz,p)) p.z = nz; else p.speed = 0;
           p.y = terrain(p.x, p.z);if(spec.hullAim)p.aim.artillery.yaw=p.yaw;
         }
+        Recon.update(p,BUSHES,this.t);
         p.wheelTravel+=(p.x-startX)*Math.sin(p.yaw)-(p.z-startZ)*Math.cos(p.yaw);
         const advance=(p.x-startX)*Math.sin(p.yaw)-(p.z-startZ)*Math.cos(p.yaw),turnTravel=wrap(p.yaw-startYaw)*spec.dimensions.width/2;p.trackTravel.left+=advance+turnTravel;p.trackTravel.right+=advance-turnTravel;
         if (p.mg && this.hasWeapon(p,'mg') && !p.pilot && p.selected === 'mg') { p.mgClock -= dt; if (p.mgClock <= 0) { this.shootMG(p); p.mgClock = weaponSpec(p,'mg').fireInterval; } } else p.mgClock = 0;
@@ -466,7 +478,7 @@
         this.observeShot(s);
         const hit=this.players.filter(p=>p.id!==s.owner&&p.hp>0).map(p=>({p,hit:vehicleHit(prev,s,p,true)})).filter(q=>q.hit).sort((a,b)=>dist3(prev,a.hit)-dist3(prev,b.hit))[0];
         if(hit&&['missile','uav','artillery','bomb','tankCannon'].includes(s.kind)){Object.assign(s,hit.hit);this.explode(s,hit.p.id);continue;}
-        if(hit&&['bullet','autocannon'].includes(s.kind)){this.damage(hit.p,s.owner,s.kind==='bullet'?s.blastSpec.groundDamage:s.blastSpec.directDamage);s.hp=0;if(s.kind==='autocannon')this.effect(s,'explosion',s.owner,4,'small');continue;}
+        if(hit&&['bullet','autocannon'].includes(s.kind)){this.damage(hit.p,s.owner,s.kind==='bullet'?s.blastSpec.groundDamage:s.blastSpec.directDamage,s.kind);s.hp=0;if(s.kind==='autocannon')this.effect(s,'explosion',s.owner,4,'small');continue;}
         if(['autocannon','tankCannon'].includes(s.kind)&&s.distance>=s.blastSpec.range){s.hp=0;continue;}
         if (s.y <= surface(s.x, s.z)) {
           // Find a swept terrain/building impact so fast rounds do not tunnel.
@@ -511,17 +523,18 @@
         if(['missile','artillery','bomb'].includes(s.kind))amount=hit||d<=spec.directRadius?spec.directDamage:d<=spec.blastRadius?Math.round(spec.nearDamage[1]-(d-spec.directRadius)/(spec.blastRadius-spec.directRadius)*(spec.nearDamage[1]-spec.nearDamage[0])):0;
         if(s.kind==='tankCannon')amount=hit?spec.directDamage:spec.blastRadius>0&&d<=spec.blastRadius?Math.round(spec.directDamage*(1-d/spec.blastRadius)):0;
         if(s.kind==='uav')amount=hit||d<spec.blastRadius?spec.directDamage:0;
-        if(amount){any=true;this.damage(target,s.owner,amount);}
+        if(amount){any=true;this.damage(target,s.owner,amount,s.kind);}
       }
       this.resolvingBlast=false;if(this.battleMode==='dark_forest')this.checkSurvivor();
-      const visualSize=s.kind==='bomb'||s.kind==='artillery'&&spec.directDamage>=140?'large':s.kind==='missile'||s.kind==='artillery'||s.kind==='tankCannon'&&spec.blastRadius>=15?'medium':'small';
+      const visualSize=s.kind==='bomb'||s.kind==='artillery'&&['longnose_artillery','cougar_artillery'].includes(this.players[s.owner]?.vehicleId)?'large':s.kind==='missile'||s.kind==='artillery'||s.kind==='tankCannon'&&spec.blastRadius>=15?'medium':'small';
       this.effect(s,'explosion',s.owner,s.kind==='missile'?34:s.kind==='artillery'?28:16,visualSize);
       if (s.y - terrain(s.x, s.z) < 20) this.effect({ ...s, y: terrain(s.x, s.z) + .25 }, 'crater', s.owner, s.kind === 'missile' ? 14 : 8);
       for(const q of this.shots){if(q.id===excludeAir||q.hp<=0||q.owner===s.owner||!['uav','missile','sam','reconPlane','bomber'].includes(q.kind))continue;const r=dist3(s,q);if(!(spec.blastRadius>0)||r>spec.blastRadius)continue;const hit=Math.round(spec.directDamage*(1-r/spec.blastRadius));q.hp-=hit;if(hit>0)this.crewVoice(s.owner,'hit');if(q.hp<=0){this.crewVoice(s.owner,'kill');this.players[s.owner].stats.intercepted++;this.effect(q,'explosion',s.owner,12);}}
       if (!any) this.note(s.owner, s.kind === 'uav' ? '无人机坠毁 · 未命中热源' : '爆炸未命中敌方发射车', 'info');
     }
-    damage(target, owner, amount) {
+    damage(target, owner, amount, weaponKind=null) {
       if(target.hp<=0||!Number.isFinite(amount)||amount<=0)return;
+      const attacker=Number.isInteger(owner)?this.players[owner]:null;if(attacker&&PRIMARY_BRANCH[weaponKind]===vehicleSpec(attacker.vehicleId).branch&&COUNTER_BRANCH[vehicleSpec(attacker.vehicleId).branch]===vehicleSpec(target.vehicleId).branch)amount=Math.round(amount*1.1);
       if(owner!==null&&amount<(vehicleSpec(target.vehicleId).immunity||0))return;
       if(owner!==null&&owner!==target.id)this.crewVoice(owner,'hit');this.crewVoice(target.id,'hurt');
       const dealt = Math.min(target.hp, amount); target.hp -= dealt; if(owner!==null)this.players[owner].stats.damage += dealt;
@@ -545,7 +558,7 @@
       for(const p of this.players){const id=p.id;if(id===s.owner||p.hp<=0||s.kind==='bullet'||s.distance<65||s.noticed&1<<id||!this.observable(id,s))continue;
         s.noticed|=1<<id;p.intel.clues.push({id:++this.id,kind:'direction',x:s.x,z:s.z,yaw:wrap(s.yaw+Math.PI),radius:500,spread:.32,until:this.t+15});if(p.intel.clues.length>5)p.intel.clues.shift();this.note(id,'发现白色尾迹 · 反向观察发射方向','warning');}
     }
-    updateIntel(){for(const p of this.players){
+    updateIntel(){for(const target of this.players)Recon.update(target,BUSHES,this.t);for(const p of this.players){
       const contacts=new Set(),air=new Set();
       for(const foe of this.players)if(foe.id!==p.id&&foe.hp>0&&this.inReconRange(p.id,{...foe,y:foe.y+4},true)){contacts.add(foe.id);if(!p.voiceContacts.has(foe.id)){const distance=dist(p,foe);if(distance<=1000)this.crewVoice(p.id,'spotted',{targetKind:vehicleSpec(foe.vehicleId).branch,clock:(Math.round(wrap(Math.atan2(foe.x-p.x,p.z-foe.z)-p.yaw)/(Math.PI/6))+12)%12||12,distance});}}
       for(const shot of this.shots)if(shot.owner!==p.id&&shot.hp>0&&['uav','reconPlane','bomber'].includes(shot.kind)&&this.inReconRange(p.id,shot,true)){air.add(shot.id);if(!p.voiceAir.has(shot.id)&&dist(p,shot)<=1000)this.crewVoice(p.id,'air',{targetKind:shot.kind});}
@@ -553,19 +566,18 @@
 
       for(const c of p.intel.contacts.values())c.visible=false;
       for(const foe of this.players){if(foe.id===p.id||foe.hp<=0){p.intel.contacts.delete(foe.id);continue;}const visible=contacts.has(foe.id)||this.inReconRange(p.id,{...foe,y:foe.y+4});
-        if(visible){if(!p.intel.contacts.has(foe.id))p.stats.detections++;p.intel.contacts.set(foe.id,{id:foe.id,x:foe.x,y:foe.y,z:foe.z,yaw:foe.yaw,vehicleId:foe.vehicleId,wheelTravel:foe.wheelTravel,trackTravel:{...foe.trackTravel},spadeDeployed:foe.spadeDeployed,selected:foe.selected,aim:copyAim(foe.aim),t:this.t,visible:true});}}
-      for(const [id,c]of p.intel.contacts)if(this.t-c.t>=intelLife(p))p.intel.contacts.delete(id);
+        if(visible){if(!p.intel.contacts.has(foe.id))p.stats.detections++;p.intel.contacts.set(foe.id,{id:foe.id,x:foe.x,y:foe.y,z:foe.z,yaw:foe.yaw,vehicleId:foe.vehicleId,wheelTravel:foe.wheelTravel,trackTravel:{...foe.trackTravel},spadeDeployed:foe.spadeDeployed,selected:foe.selected,aim:copyAim(foe.aim),t:this.t,life:this.sensorIntelLife(p.id,{...foe,y:foe.y+4}),visible:true});}}
+      for(const [id,c]of p.intel.contacts)if(this.t-c.t>=(c.life??intelLife(p)))p.intel.contacts.delete(id);
       p.intel.lock=[...p.intel.contacts.values()].sort((a,b)=>Number(b.visible)-Number(a.visible)||dist(p,a)-dist(p,b))[0]||null;
       for(const c of p.intel.air.values())c.visible=false;
-      for(const s of this.shots)if(s.owner!==p.id&&s.kind!=='bullet'&&(air.has(s.id)||this.inReconRange(p.id,s)))p.intel.air.set(s.id,{id:s.id,kind:s.kind,model:s.kind==='missile'?'tow':null,x:s.x,y:s.y,z:s.z,yaw:s.yaw,pitch:s.pitch,speed:s.speed,bombs:s.bombs,t:this.t,visible:true});
-      for(const [id,c]of p.intel.air)if(this.t-c.t>=intelLife(p))p.intel.air.delete(id);
+      for(const s of this.shots)if(s.owner!==p.id&&s.kind!=='bullet'&&(air.has(s.id)||this.inReconRange(p.id,s)))p.intel.air.set(s.id,{id:s.id,kind:s.kind,model:s.kind==='missile'?'tow':null,x:s.x,y:s.y,z:s.z,yaw:s.yaw,pitch:s.pitch,speed:s.speed,bombs:s.bombs,t:this.t,life:this.sensorIntelLife(p.id,s),visible:true});
+      for(const [id,c]of p.intel.air)if(this.t-c.t>=(c.life??intelLife(p)))p.intel.air.delete(id);
     }}
     checkSurvivor(){const alive=this.players.filter(p=>p.hp>0);if(alive.length===1)this.finish(alive[0].id,'黑暗森林 · 最后一辆载具存活');else if(!alive.length)this.finish(null,'所有载具被摧毁');}
-    updateZone(dt){const elapsed=this.t-this.countdown,stage=Math.min(5,Math.floor((elapsed+1e-7)/60)),radii=[Math.hypot(W,H)/2+1,1000,750,500,250,0];this.zone={x:W/2,z:H/2,radius:radii[stage],stage,next:Math.min(300,(stage+1)*60),damage:stage===5?30:8};
-      // Resolve simultaneous gas casualties as a batch. At full coverage, durability decides survival.
-      const victims=this.players.filter(p=>p.hp>0&&(stage===5||dist(p,this.zone)>this.zone.radius));
-      const final=stage===5&&victims.length>0&&victims.every(p=>p.hp<=this.zone.damage*dt+1e-8)?victims.reduce((a,b)=>b.hp>a.hp?b:a):null;
-      for(const p of victims){if(p===final){p.hp=Math.max(.001,p.hp);continue;}const dealt=Math.min(p.hp,this.zone.damage*dt);p.hp=Math.max(0,p.hp-dealt);if(p.hp<=1e-8){p.hp=0;this.crewVoice(p.id,'destroyed');p.eliminatedAt=this.t;p.pilot=null;p.repairUntil=0;p.mg=false;this.eliminations.push(p.id);}}
+    updateZone(dt){const elapsed=this.t-this.countdown,stage=Math.min(5,Math.floor((elapsed+1e-7)/60)),radii=[Math.hypot(W,H)/2+1,1000,750,500,250,0];this.zone={x:W/2,z:H/2,radius:radii[stage],stage,next:Math.min(300,(stage+1)*60),damage:2};
+      const victims=[];for(const p of this.players){if(p.hp<=0)continue;if(stage===5||dist(p,this.zone)>this.zone.radius){p.gasClock=(p.gasClock||0)+dt;const ticks=Math.floor(p.gasClock+1e-8);if(ticks){p.gasClock-=ticks;victims.push({p,damage:2*ticks});}}else p.gasClock=0;}
+      const final=stage===5&&victims.length===this.players.filter(p=>p.hp>0).length&&victims.length>0&&victims.every(v=>v.p.hp<=v.damage)?victims.reduce((a,b)=>b.p.hp>a.p.hp?b:a).p:null;
+      for(const {p,damage}of victims){if(p===final){p.hp=Math.max(1,p.hp);continue;}p.hp=Math.max(0,p.hp-damage);if(p.hp===0){this.crewVoice(p.id,'destroyed');p.eliminatedAt=this.t;p.pilot=null;p.repairUntil=0;p.mg=false;this.eliminations.push(p.id);}}
       this.checkSurvivor();
     }
     runBots(dt){for(const p of this.players){if(p.id===0||p.hp<=0)continue;this.aiId=p.id;
@@ -579,7 +591,7 @@
       const error=wrap(yaw-p.yaw);p.drive={throttle:Math.abs(error)>1.5?.35:1,steer:clamp(error*1.8,-1,1)};
     }
     finish(winner, reason) { if (this.over) return; this.over = true; this.winner = winner; this.reason = reason; for(const p of this.players)if(winner!==null)this.crewVoice(p.id,winner===p.id?'win':'loss'); for (const p of this.players) { p.mg = false; p.drive = { throttle: 0, steer: 0 }; } }
-    cougarAI(dt){const p=this.players[this.aiId||1],known=p.intel.lock&&this.t-p.intel.lock.t<intelLife(p)?p.intel.lock:null;p.controlAt=this.t;
+    cougarAI(dt){const p=this.players[this.aiId||1],known=p.intel.lock&&this.t-p.intel.lock.t<(p.intel.lock.life??intelLife(p))?p.intel.lock:null;p.controlAt=this.t;
       if(!known){if(p.spadeDeployed){p.spadeDeployed=false;p.cd.artillery*=1.25;this.sound('spade',p,p.id);}this.updateAI(dt);return;}p.pilot=null;p.mg=false;const range=dist(p,known),yaw=Math.atan2(known.x-p.x,p.z-known.z),error=wrap(yaw-p.yaw);
       if(range>950||range<450){const d=range||1,goal={x:clamp(known.x+(p.x-known.x)/d*850,30,W-30),z:clamp(known.z+(p.z-known.z)/d*850,30,H-30)};this.driveToward(p,goal);return;}
       p.drive={throttle:0,steer:0};if(Math.abs(error)>.48){if(p.spadeDeployed){p.selected='spade';this.command(p.id,{type:'fire'});}p.drive.steer=clamp(error*2,-1,1);return;}
@@ -587,7 +599,7 @@
     }
     kfzAI(dt){
       const p=this.players[this.aiId||1];if(this.over||this.t<this.countdown||p.hp<=0)return;p.controlAt=this.t;p.drive={throttle:0,steer:0};
-      const plane=this.shots.find(q=>q.id===p.pilot&&q.kind==='bomber'),known=p.intel.lock&&this.t-p.intel.lock.t<intelLife(p)?p.intel.lock:null;
+      const plane=this.shots.find(q=>q.id===p.pilot&&q.kind==='bomber'),known=p.intel.lock&&this.t-p.intel.lock.t<(p.intel.lock.life??intelLife(p))?p.intel.lock:null;
       if(plane){if(known){plane.yaw=Math.atan2(known.x-plane.x,plane.z-known.z);plane.pitch=0;const fall=Math.sqrt(Math.max(0,plane.y-terrain(known.x,known.z))*2/9.81),impact={x:plane.x+Math.sin(plane.yaw)*plane.speed*fall,z:plane.z-Math.cos(plane.yaw)*plane.speed*fall};if(plane.bombs&&dist(impact,known)<28)this.command(this.aiId||1,{type:'bomb'});}if(!plane.bombs)this.command(this.aiId||1,{type:'vehicle'});return;}
       this.aiClock-=dt;if(this.aiClock>0)return;this.aiClock=.6;
       if(!known){if(!p.cd.reconPlane){p.selected='reconPlane';p.aim.reconPlane={yaw:this.random()*TAU,pitch:0};this.command(this.aiId||1,{type:'fire'});}return;}
@@ -732,7 +744,7 @@
     }
     tankAI(dt){const p=this.players[this.aiId||1],gun=this.hasWeapon(p,'tankCannon')?'tankCannon':'autocannon';p.controlAt=this.t;if(p.repairUntil)return;
       if(this.hasWeapon(p,'repair')&&p.hp<60&&!p.repairUsed){p.selected='repair';this.command(p.id,{type:'fire'});return;}
-      const known=p.intel.lock&&this.t-p.intel.lock.t<intelLife(p)?p.intel.lock:null;
+      const known=p.intel.lock&&this.t-p.intel.lock.t<(p.intel.lock.life??intelLife(p))?p.intel.lock:null;
       p.selected=gun;
       if(known){const yaw=Math.atan2(known.x-p.x,p.z-known.z),pitch=Math.atan2(known.y+1-p.y-vehicleSpec(p.vehicleId).muzzleHeight,Math.max(1,dist(p,known)));this.setAim(p,{yaw,pitch});
         if(!p.cd.observation){p.selected='observation';this.command(p.id,{type:'fire'});}
@@ -801,24 +813,24 @@
       const p = this.players[id], lock = p.intel.lock, age = lock ? this.t - lock.t : Infinity;
       const shots = this.shots.filter(s => s.owner === id).map(s => ({
         id: s.id, kind: s.kind, model:s.kind==='missile'&&['handlv_missile','black_turtle'].includes(p.vehicleId)?'tow':null,mine: true, x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: s.pitch, speed: s.speed,
-        bombs:s.bombs,hp:s.hp,remaining:s.ttl===null?null:Math.max(0,s.ttl-(this.t-s.born)),...(s.kind==='sam'?{locked:!!this.shots.find(q=>q.id===s.targetId&&q.hp>0)}:{}),...(s.kind==='uav'?{orbit:s.orbit?{x:s.orbit.x,z:s.orbit.z,radius:s.orbit.radius,altitude:s.orbit.altitude,joining:s.orbit.joining}:null}:{}),...(s.kind==='artillery'?{artilleryMode:s.artilleryMode}:{})
+        bombs:s.bombs,hp:s.hp,...(['uav','missile','reconPlane','bomber'].includes(s.kind)?{reconLeft:Math.max(0,s.ttl-(this.t-s.born))}:{}),remaining:s.ttl===null?null:Math.max(0,s.ttl-(this.t-s.born)),...(s.kind==='sam'?{locked:!!this.shots.find(q=>q.id===s.targetId&&q.hp>0)}:{}),...(s.kind==='uav'?{orbit:s.orbit?{x:s.orbit.x,z:s.orbit.z,radius:s.orbit.radius,altitude:s.orbit.altitude,joining:s.orbit.joining}:null}:{}),...(s.kind==='artillery'?{artilleryMode:s.artilleryMode}:{})
       }));
-      for(const c of p.intel.air.values())if(this.t-c.t<intelLife(p))shots.push({id:c.id,kind:c.kind,model:c.model,mine:false,bombs:c.bombs,x:c.x,y:c.y,z:c.z,yaw:c.yaw,pitch:c.pitch,speed:c.speed,retained:!c.visible,left:Math.max(0,intelLife(p)-(this.t-c.t))});
+      for(const c of p.intel.air.values())if(this.t-c.t<(c.life??intelLife(p)))shots.push({id:c.id,kind:c.kind,model:c.model,mine:false,bombs:c.bombs,x:c.x,y:c.y,z:c.z,yaw:c.yaw,pitch:c.pitch,speed:c.speed,retained:!c.visible,left:Math.max(0,(c.life??intelLife(p))-(this.t-c.t))});
       for(const s of this.shots)if(s.owner!==id&&s.kind!=='bullet'&&!p.intel.air.has(s.id)&&this.observable(id,s))shots.push({id:s.id,kind:s.kind,model:s.kind==='missile'?'tow':null,mine:false,visualOnly:true,bombs:s.bombs,x:s.x,y:s.y,z:s.z,yaw:s.yaw,pitch:s.pitch,speed:s.speed});
       const r=v=>Math.round(v*100)/100;
       const trails = this.trails.map(tr => ({ id: tr.id, kind: tr.kind, mine: tr.owner === id, points: tr.points.filter(q => tr.owner === id || q.d > 45 && this.observable(id, q)).map(q => ({ x:r(q.x),y:r(q.y),z:r(q.z),age:r(this.t-q.t) })) })).filter(tr => tr.points.length > 1);
       const listener=this.shots.find(s=>s.owner===id&&s.id===p.pilot)||{x:p.x,y:p.y+5,z:p.z,yaw:p.yaw};
       const sounds=this.sounds.flatMap(e=>{if(e.kind==='confirm')return e.owner===id?[{id:e.id,kind:e.kind,gain:.65,pan:0}]:[];const distance=dist3(listener,e),range=e.kind==='explosion'?650:380;if(distance>range)return [];return [{id:e.id,kind:e.kind,gain:Math.max(.03,(1-distance/range)**2),pan:clamp(Math.sin(Math.atan2(e.x-listener.x,listener.z-e.z)-listener.yaw),-1,1)}];});
-      const enemies=[...p.intel.contacts.values()].map(c=>({...c,precise:true,retained:!c.visible,left:Math.max(0,intelLife(p)-(this.t-c.t))}));
+      const enemies=[...p.intel.contacts.values()].map(c=>({...c,precise:true,retained:!c.visible,left:Math.max(0,(c.life??intelLife(p))-(this.t-c.t))}));
       return { battleMode:this.battleMode,enemies,alive:this.players.filter(q=>q.hp>0).length,zone:this.battleMode==='dark_forest'?{...this.zone,left:Math.max(0,this.zone.next-(this.t-this.countdown))}:null,placement:p.hp>0?1:this.players.length-this.eliminations.indexOf(p.id),version: 9, roomTier:this.roomTier, field:{width:W,height:H,recon:RECON_RANGE,reconRanges:{...RECON_RANGES},intelLife:intelLife(p),mapId:this.mapId}, seed: this.seed, t: this.t, started: this.t >= this.countdown, countdown: Math.max(0,this.countdown-this.t), remaining: Math.max(0,this.limit-Math.max(0,this.t-this.countdown)),
         settled:this.over||p.hp<=0,over: this.over, outcome: (this.over||p.hp<=0) ? !this.over?'loss':this.winner === null ? 'draw' : this.winner === id ? 'win' : 'loss' : null, reason: p.hp<=0&&!this.over?'载具已被摧毁':this.reason,
-        own: {spadeDeployed:p.spadeDeployed,crew:p.crew.map(m=>({...m})),crewModifiers:Crew.modifiers(p.crew),concealed:Recon.hidden(p,BUSHES,this.t),revealLeft:Math.max(0,p.revealedUntil-this.t),eliminatedAt:p.eliminatedAt,observationYaw:p.observationYaw,heArmed:p.heArmed,ammo:p.ammo,reloadLeft:Math.max(0,p.reloadUntil-this.t),repairUsed:p.repairUsed,repairLeft:Math.max(0,p.repairUntil-this.t),observationLeft:Math.max(0,p.observationUntil-this.t),vehicleId:p.vehicleId,weapons:[...p.weapons],maxHp:p.maxHp,trackTravel:{...p.trackTravel},wheelTravel:p.wheelTravel,x:p.x,y:p.y,z:p.z,yaw:p.yaw,hp:p.hp,speed:p.speed,selected:p.selected,pilot:p.pilot,artilleryMode:p.artilleryMode,aim:copyAim(p.aim),cd:{...p.cd},mg:p.mg,stats:{...p.stats} },
-        enemy: age < intelLife(p) ? { vehicleId:lock.vehicleId,wheelTravel:lock.wheelTravel,trackTravel:lock.trackTravel,spadeDeployed:lock.spadeDeployed,selected:lock.selected,aim:lock.aim,x:lock.x,y:lock.y,z:lock.z,yaw:lock.yaw,precise:true,retained:!lock.visible,left:Math.max(0,intelLife(p)-age),age } : null,
+        own: {spadeDeployed:p.spadeDeployed,crew:p.crew.map(m=>({...m})),crewModifiers:Crew.modifiers(p.crew),concealed:Recon.hidden(p,BUSHES,this.t),concealLeft:Math.max(0,(p.concealUntil||0)-this.t),concealCooldown:Math.max(0,(p.concealCooldownUntil||0)-this.t),revealLeft:Math.max(0,p.revealedUntil-this.t),eliminatedAt:p.eliminatedAt,observationYaw:p.observationYaw,heArmed:p.heArmed,ammo:p.ammo,reloadLeft:Math.max(0,p.reloadUntil-this.t),repairUsed:p.repairUsed,repairLeft:Math.max(0,p.repairUntil-this.t),observationLeft:Math.max(0,p.observationUntil-this.t),vehicleId:p.vehicleId,weapons:[...p.weapons],maxHp:p.maxHp,trackTravel:{...p.trackTravel},wheelTravel:p.wheelTravel,x:p.x,y:p.y,z:p.z,yaw:p.yaw,hp:p.hp,speed:p.speed,selected:p.selected,pilot:p.pilot,artilleryMode:p.artilleryMode,aim:copyAim(p.aim),cd:{...p.cd},mg:p.mg,stats:{...p.stats} },
+        enemy: age < (lock?.life??intelLife(p)) ? { vehicleId:lock.vehicleId,wheelTravel:lock.wheelTravel,trackTravel:lock.trackTravel,spadeDeployed:lock.spadeDeployed,selected:lock.selected,aim:lock.aim,x:lock.x,y:lock.y,z:lock.z,yaw:lock.yaw,precise:true,retained:!lock.visible,left:Math.max(0,(lock?.life??intelLife(p))-age),age } : null,
         crewEvents:this.crewEvents.filter(e=>e.owner===id&&this.t-e.t<15).map(e=>({...e})),clues:p.intel.clues.map(c=>({...c,left:c.until-this.t})), shots, trails, sounds,
         effects:this.effects.filter(e=>e.owner===id || this.observable(id,e)).map(e=>({...e,age:this.t-e.born})), log:p.log.map(e=>({...e})),
         threats:shots.filter(s=>!s.mine&&!s.retained&&['missile','uav','sam','reconPlane','bomber'].includes(s.kind)&&dist3(s,{...p,y:p.y+1.65})<=RECON_RANGE).length };
     }
   }
-  const api = { Engine,solveArtillery,BRANCHES,matchCandidates,artilleryRanges,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,weaponSpec,W,H,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,TREE_CELLS,BUSHES,Crew,Motion,Recon,buildingBlocks,treeHit,clearGround,vehicleClear,vehicleHit,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
+  const api = { GUN_MOUNTS,gunRestPitch,Engine,solveArtillery,BRANCHES,matchCandidates,artilleryRanges,MAPS,LAKE,inLake,configureMap,intelLife,WEAPONS,VEHICLES,DEFAULT_VEHICLE,vehicleSpec,weaponSpec,W,H,RECON_RANGE,RECON_RANGES,reconRange,INTEL_LIFE,C,PITCH,DEFAULT_PITCH,GRAVITY,ARTILLERY_RANGE,SHELL_SPEED,TRAIL_LIFE,ORBIT_RADIUS,ARTILLERY,artilleryParams,BUILDINGS,TREES,TREE_CELLS,BUSHES,Crew,Motion,Recon,buildingBlocks,treeHit,clearGround,vehicleClear,vehicleHit,clamp,wrap,dist,dist3,direction,terrain,surface,muzzle,ballistic,lineOfSight,segmentDistance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; root.Blindfire = api;
 })(typeof window !== 'undefined' ? window : globalThis);

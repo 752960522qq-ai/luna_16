@@ -3,8 +3,13 @@ from pathlib import Path
 import zipfile,sys,json,hashlib,io
 from PIL import Image
 root=Path(__file__).resolve().parents[1]/'app/src/main/assets';source=Path(sys.argv[1])
-with zipfile.ZipFile(next(source.glob('Battle_Voice*.zip'))) as z:
+archives=sorted(source.glob('Battle_Voice*.zip'))
+if len(archives)!=1:raise ValueError('Supply exactly one current radio voice archive')
+for old in (root/'audio/crew').glob('*.mp3'):old.unlink()
+with zipfile.ZipFile(archives[0]) as z:
  clips=[]
+ for name in z.namelist():
+  if name.endswith('Voice_Clip_Index.csv'):(root/'audio/crew/Voice_Clip_Index.csv').write_bytes(z.read(name))
  for name in z.namelist():
   if not name.endswith('.mp3'):continue
   out=root/'audio/crew'/Path(name).name;out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(z.read(name));clips.append(out.stem)

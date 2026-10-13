@@ -15,6 +15,8 @@ jobs:
         run: python3 -m pip install fonttools
       - name: Gameplay rules
         run: |
+          node tests/october-gameplay.test.mjs
+          node tests/crew-voice.test.mjs
           node tests/cougar-update.test.mjs
           node tests/explosion-effects.test.mjs
           node tests/crew-recon-update.test.cjs
@@ -39,6 +41,7 @@ jobs:
             npx playwright install --with-deps chromium
             unset CHROMIUM_EXECUTABLE
           fi
+          SOFTWARE_GL=1 node tests/october-browser.test.cjs
           SOFTWARE_GL=1 node tests/combat-update-browser.test.cjs
           SOFTWARE_GL=1 node tests/cougar-update-browser.test.cjs
           SOFTWARE_GL=1 node tests/explosion-effects-browser.test.cjs

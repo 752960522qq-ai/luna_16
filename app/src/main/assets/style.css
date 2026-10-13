@@ -82,3 +82,8 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 .conceal-status{left:20px;right:auto;top:234px}@media(max-height:720px){.conceal-status{top:204px}}
 
 .flight-info{top:38%;bottom:auto}.event-line{top:calc(38% + 88px);bottom:auto}
+
+/* Weapon optics stay on the right, clear of the left movement stick. */
+.camera-actions{left:auto;right:20px;transform:none;bottom:310px}.map-aim-toggle{left:auto;right:20px;top:auto;bottom:355px;width:40px;height:36px}.map-aim-toggle svg{width:23px;height:23px}@media(max-height:720px){.camera-actions{bottom:270px}.map-aim-toggle{top:auto;bottom:315px}}
+
+.camera-actions .map-aim-toggle{position:static;width:40px;height:36px;transform:none;margin:0}

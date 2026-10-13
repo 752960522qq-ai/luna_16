@@ -9,7 +9,7 @@ for(const k of ['sam','missile'])assert.equal(e.command(0,{type:'select',weapon:
 Object.assign(e.players[0],{x:1000,z:1600,y:B.terrain(1000,1600)});Object.assign(e.players[1],{x:1000,z:650,y:B.terrain(1000,950)});
 assert.equal(e.command(0,{type:'map-aim',x:1000,z:650}).ok,true);const arc=B.ballistic(e.players[0]);assert.ok(B.dist(arc.hit,{x:1000,z:650})<1);
 assert.equal(e.command(0,{type:'map-aim',x:0,z:0}).ok,false);
-const shot=e.launch(e.players[0],'artillery');Object.assign(shot,{x:e.players[1].x,y:e.players[1].y+3,z:e.players[1].z});e.explode(shot,true);assert.equal(e.players[1].hp,0);
+const shot=e.launch(e.players[0],'artillery');Object.assign(shot,{x:e.players[1].x,y:e.players[1].y+3,z:e.players[1].z});e.explode(shot,true);assert.equal(e.players[1].hp,77);
 assert.equal(B.TREES.length,800);const tree=B.TREES.find(t=>t.x>100&&t.x<1900&&t.z>100&&t.z<1900);
 assert.ok(B.treeHit({x:tree.x-10,y:tree.y+2,z:tree.z},{x:tree.x+10,y:tree.y+2,z:tree.z}));assert.equal(B.clearGround(tree.x,tree.z),false);
 const counts={};for(let seed=1;seed<60;seed++){const q=new B.Engine({seed});counts[q.players[1].vehicleId]=true;}assert.deepEqual(Object.keys(counts).sort(),B.matchCandidates(B.DEFAULT_VEHICLE).sort());
