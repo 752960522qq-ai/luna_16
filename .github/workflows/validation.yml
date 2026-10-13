@@ -1,7 +1,7 @@
 name: Gameplay and visual validation (no packages)
 on:
   push:
-    branches: ['feature/crew-recon-update']
+    branches: ['main', 'feature/crew-recon-update']
   workflow_dispatch:
 jobs:
   validate:
@@ -22,6 +22,7 @@ jobs:
           node tests/garage.test.cjs
           node tests/artillery-expansion.test.cjs
           node tests/dark-forest.test.cjs
+          node tests/eight-tier-balance.test.cjs
           node tests/tier-progression.test.cjs
           node tests/second-tier.test.cjs
           node tests/kfz-air-support.test.cjs
