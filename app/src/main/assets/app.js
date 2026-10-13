@@ -36,8 +36,8 @@ function weaponRows(id,vehicleId){const w=weaponSpec({vehicleId},id),rows=[['装
  if(id==='autocannon')rows.push(['弹匣','10发'],['射击间隔','0.4秒'],['换弹','5秒']);
  if(id==='spade')rows.push(['展开效果','固定车体，火炮冷却缩短20%'],['收起效果','恢复机动'],['使用次数','不限次数，无冷却']);
  if(id==='repair')rows.push(['使用次数','每局一次'],['维修时间','15秒，禁止移动和攻击'],['维修效果','恢复全部生命值']);
- if(id==='highExplosive')rows.push(['作用','下一发122mm炮弹变为高爆弹'],['爆炸中心伤害','95 HP'],['伤害衰减','随距离线性降低']);
- if(id==='tankCannon')rows.push(['作用','普通弹伤害90、爆炸半径5米，装填10秒；高爆弹中心伤害95']);
+ if(id==='highExplosive')rows.push(['作用','下一发122mm炮弹变为高爆弹'],['爆炸中心伤害',w.directDamage+' HP'],['伤害衰减','随距离线性降低']);
+ if(id==='tankCannon')rows.push(['作用','普通弹伤害'+w.directDamage+'、爆炸半径'+w.blastRadius+'米，装填'+w.cooldown+'秒；高爆弹中心伤害'+weaponSpec({vehicleId},'highExplosive').directDamage]);
  if(id==='observation')rows.push(['扇形范围','前方90° / 500m'],['持续时间','8秒']);
  if(w.hp)rows.push(['空中耐久',`${w.hp} HP`]);
  if(w.recon)rows.push(['侦察距离',`${w.recon} m`]);
