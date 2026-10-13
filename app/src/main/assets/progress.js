@@ -27,7 +27,7 @@
   reward(round,outcome,battle={}){
    this.lastResearch=0;
    if(typeof round!=='string'||!round||round.length>128||!Object.hasOwn(REWARDS,outcome)||this.claimed.includes(round))return 0;
-   const v=B.vehicleSpec(battle.vehicleId),tier=B.clamp(Math.floor(battle.roomTier||v.tier),1,4),stats=battle.stats||{},safe=n=>Number.isFinite(n)?B.clamp(n,0,100000):0;
+   const v=B.vehicleSpec(battle.vehicleId),tier=B.clamp(Math.floor(battle.roomTier||v.tier),1,8),stats=battle.stats||{},safe=n=>Number.isFinite(n)?B.clamp(n,0,100000):0;
    const performance=Math.floor(safe(stats.damage)*.2+safe(stats.detections)*3+safe(stats.intercepted)*12);
    const gross=Math.round((REWARDS[outcome]+performance)*(1+(tier-1)*.5));
    const amount=this.infiniteCoins?gross:Math.min(gross,Number.MAX_SAFE_INTEGER-this.coins);
