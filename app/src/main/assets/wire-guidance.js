@@ -1,0 +1,12 @@
+/* Vehicle-view MCLOS control and independent launcher state. No target selection. */
+(function(root){'use strict';
+ const isWire=p=>p?.vehicleId==='silver_valkyrie';
+ function init(p){if(isWire(p))Object.assign(p,{launcherReadyAt:[0,0],guidedMissile:null,thermalCharge:100,thermalActive:false,scopeActive:false});}
+ function thermal(p){return isWire(p)&&p.hp>0&&p.thermalActive&&p.thermalCharge>0&&p.scopeActive&&p.selected==='missile'&&!p.pilot;}
+ function choose(B,p,t){const angle=B.wrap(p.aim.missile.yaw-p.yaw),slots=angle<-.0001?[0]:angle>.0001?[1]:[1-p.launchSlot,p.launchSlot];return slots.find(i=>p.launcherReadyAt[i]<=t)??-1;}
+ function state(p,t){return isWire(p)?{guidedMissile:p.guidedMissile,thermalActive:p.thermalActive,thermalCharge:p.thermalCharge,scopeActive:p.scopeActive,launcherReloadLeft:p.launcherReadyAt.map(at=>Math.max(0,at-t)),launchSlot:p.launchSlot}:{};}
+ function update(B,e,p,dt){if(!isWire(p))return;if(p.hp<=0){p.guidedMissile=null;p.thermalActive=false;p.scopeActive=false;return;}if(e.restricted?.(p))p.thermalActive=false;if(p.thermalActive){p.thermalCharge=Math.max(0,p.thermalCharge-5*dt);if(p.thermalCharge===0)p.thermalActive=false;}else if(!e.restricted?.(p))p.thermalCharge=Math.min(100,p.thermalCharge+4*dt);if(p.guidedMissile&&!e.shots.some(s=>s.id===p.guidedMissile&&s.hp>0))p.guidedMissile=null;}
+ function aimAt(B,p,target){const origin=B.groundGunPoint(p,0,0,0),axes=[[1,0,0],[0,1,0],[0,0,1]].map(a=>{const q=B.groundGunPoint(p,...a);return{x:q.x-origin.x,y:q.y-origin.y,z:q.z-origin.z};}),m=B.muzzle(p,'missile'),d={x:target.x-m.x,y:target.y-m.y,z:target.z-m.z},local=axes.map(a=>a.x*d.x+a.y*d.y+a.z*d.z);return{yaw:B.wrap(p.yaw+Math.atan2(local[0],-local[2])),pitch:Math.atan2(local[1],Math.hypot(local[0],local[2]))};}
+ function guide(B,e,s,dt){const p=e.players[s.owner];if(!s.wireGuided||!p||p.hp<=0||p.guidedMissile!==s.id)return;const a=p.aim.missile,m=B.muzzle(p,'missile'),d=B.projectileDirection(p,'missile'),target={x:m.x+d.x*1000,y:m.y+d.y*1000,z:m.z+d.z*1000},yaw=Math.atan2(target.x-s.x,s.z-target.z),pitch=Math.atan2(target.y-s.y,B.dist(s,target));s.yaw=B.wrap(s.yaw+B.clamp(B.wrap(yaw-s.yaw),-2*dt,2*dt));s.pitch+=B.clamp(pitch-s.pitch,-2*dt,2*dt);}
+ const api={aimAt,isWire,init,thermal,choose,state,update,guide};if(typeof module!=='undefined'&&module.exports)module.exports=api;root.BlindfireWireGuidance=api;
+})(typeof window!=='undefined'?window:globalThis);

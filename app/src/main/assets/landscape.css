@@ -16,3 +16,22 @@ select,option{font:inherit;font-family:BFUI,system-ui,sans-serif}.hangar-menu .m
 .ally-dot{background:#49baff;border-color:#c6efff;box-shadow:0 0 7px #348aff;width:10px;height:10px}#enemyDots{z-index:9;pointer-events:none}
 
 #enemyDots{position:absolute;inset:0}.countdown{top:34px;left:50%;right:auto;transform:translateX(-50%);font-size:26px;display:flex;gap:8px;align-items:center}.countdown small{font-size:9px;letter-spacing:0;margin:0}.map-camera-controls{left:auto;right:14px;top:155px;gap:4px;flex-direction:column}.map-camera-controls button{width:32px;height:32px;font-size:19px}.map-camera-controls span{display:none}.map-aim .ballistic-panel{display:none}
+
+.gold-wallet{color:#f5d587}.gold-wallet b{color:#f5d587}
+
+.return-queue{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);z-index:30;padding:10px 24px;background:#243a30ed;color:#f1e6bd;border:1px solid #b5b691;border-radius:6px;font-size:14px;pointer-events:auto;}
+
+/* Keep tutorial guidance above the central aiming view; touch passes through the card. */
+@media (orientation:landscape){.tutorial-panel{top:50px;left:50%;right:auto;transform:translateX(-50%);width:min(420px,46vw);max-height:calc(50vh - 55px);overflow:auto;padding:6px 9px;font-size:11px;line-height:1.3;background:rgba(13,32,25,.72);pointer-events:none}.tutorial-panel p{margin:4px 0}.tutorial-panel .btn{padding:3px 12px;min-height:24px;width:auto}.tutorial-panel button{pointer-events:auto}.tutorial-panel.collapsed p,.tutorial-panel.collapsed #tutorialNext{display:none}}
+#tutorialCollapse{float:right;background:transparent;border:0;color:#e9ca61;padding:0 4px;font-size:11px;pointer-events:auto}
+
+.gun-sight-active #enemyDots{visibility:visible;z-index:19;clip-path:circle(39vh at 50% 50%)}
+@media(orientation:landscape){.tutorial-panel{top:104px;left:16px;transform:none;width:min(205px,24vw);max-height:calc(100vh - 180px)}}
+
+.activities-modal{position:fixed;inset:0;background:#050a10d9;z-index:120;display:grid;place-items:center;padding:10px}.activities-modal.hidden{display:none}.activities-card{width:min(800px,96vw);max-height:calc(100vh - 20px);overflow:auto;touch-action:pan-y;border:1px solid #907647;border-radius:12px;background:#17232b;padding:12px;color:#f6ecd8}.activity-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.activity-heading h2{margin:0}.activity-heading .btn{width:auto;flex-shrink:0;margin:0;padding:7px 16px;min-height:30px}.activity-heading span{min-width:0;font-size:12px;overflow-wrap:anywhere}.activities-card img{display:block;width:100%;max-height:38vh;object-fit:contain;margin:8px 0}.activities-card p{font-size:12px;margin:5px 0}.check-in-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:8px 0}.check-in-day{min-width:0;overflow-wrap:anywhere;padding:8px 3px;border:1px solid #687168;border-radius:6px;text-align:center;font-size:11px}.check-in-day.done{background:#326344}.check-in-day.today{border-color:#ffd479}.check-in-day b{display:block;margin:3px 0}.main-nav{overflow-x:auto;touch-action:pan-x}.main-nav button{flex-shrink:0}@media(max-height:430px){.activities-card img{max-height:27vh}.check-in-day{padding:5px 2px}.activity-heading h2{font-size:20px}}@media(max-height:350px){.activities-card{padding:7px}.activities-card p{font-size:11px}}
+
+/* The supplied poster fills the activity surface; rewards remain readable. */
+.activities-card{position:relative;isolation:isolate;width:calc(100vw - 20px);height:calc(100vh - 20px);max-height:none;background:#17232b url("activities/newcomer-gift.png") center/cover no-repeat;display:flex;flex-direction:column;justify-content:flex-end;padding:14px}
+.activities-card::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:linear-gradient(#050a1088,transparent 35%,#050a10dc 75%)}
+.activities-card>img{display:none}.activities-card>.activity-heading:first-child{margin-bottom:auto}.check-in-day{background:#17232bd9}.activities-card p,.activity-heading span{text-shadow:0 1px 3px #000}
+@media(max-height:350px){.activities-card{padding:7px}.check-in-days{margin:4px 0}.check-in-day{padding:3px 2px}}

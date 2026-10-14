@@ -54,7 +54,7 @@
 .gun-sight-overlay{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at center,transparent 0,transparent min(42vw,29vh),#050806ed calc(min(42vw,29vh) + 2px))}
 .gun-sight-lens{position:absolute;left:50%;top:50%;width:min(84vw,58vh);height:min(84vw,58vh);transform:translate(-50%,-50%);border:2px solid #91a59999;border-radius:50%;overflow:hidden}
 .gun-sight-lens i,.gun-sight-lens b{position:absolute;display:block;background:#142018bb}.gun-sight-lens i{left:50%;top:0;width:1px;height:100%}.gun-sight-lens b{left:0;top:50%;height:1px;width:100%}.gun-sight-lens span{position:absolute;left:53%;top:60%;font:12px monospace;color:#bdd4b9}
-.gun-sight-active #enemyDots,.gun-sight-active .camera-badge{visibility:hidden}
+.gun-sight-active .camera-badge{visibility:hidden}
 
 /* TapTap H5: dynamic visual viewport, scrollable small-screen menu and portrait fallback. */
 body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
@@ -65,7 +65,7 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 .h5-portrait .battle-header{top:calc(13px + env(safe-area-inset-top))}
 #portraitHint{display:none;position:fixed;inset:0;z-index:100;background:#142720;color:#eef0da;align-content:center;justify-items:center;gap:16px;text-align:center;padding:24px;touch-action:none}
 #portraitHint b{font-size:24px}#portraitHint span{font-size:14px}
-.h5-landscape #portraitHint{display:grid}
+.h5-portrait #portraitHint{display:grid}
 @media(max-height:600px){.h5-portrait .brand{margin-top:14px;margin-bottom:18px}.h5-portrait .brand h1{font-size:40px}.h5-portrait .brand p{margin-top:8px}.h5-portrait .edition-tag{margin-top:8px}}
 
 .h5-portrait .health,.h5-portrait .intel-panel,.h5-portrait .mini-wrap,.h5-portrait .camera-badge,.h5-portrait .ballistic-panel{margin-top:env(safe-area-inset-top)}
@@ -87,3 +87,9 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 .camera-actions{left:auto;right:20px;transform:none;bottom:310px}.map-aim-toggle{left:auto;right:20px;top:auto;bottom:355px;width:40px;height:36px}.map-aim-toggle svg{width:23px;height:23px}@media(max-height:720px){.camera-actions{bottom:270px}.map-aim-toggle{top:auto;bottom:315px}}
 
 .camera-actions .map-aim-toggle{position:static;width:40px;height:36px;transform:none;margin:0}
+.tech-tier{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:5px;height:110px;margin-bottom:14px}.tech-tier>.tech-slot{margin-bottom:0;min-width:0}.tech-tier .tech-detail img{max-width:100%;object-fit:contain}.tech-tier .tech-detail b{overflow-wrap:anywhere}
+
+#world.thermal-active{filter:grayscale(1) contrast(1.25) brightness(.75);}
+.lineup-section .queue-card small{display:none}
+
+@font-face{font-family:BFUI;src:url("ui-additions.woff") format("woff");font-display:swap;unicode-range:U+4E03,U+4ECA,U+5580,U+597D,U+5F97,U+60AC,U+6302,U+65E5,U+677E,U+793C,U+79CB,U+7AD6,U+7B7E,U+7BAD,U+7C27,U+82CF,U+838E,U+83B7,U+8D60,U+8F6E,U+9001,U+94A2,U+9886,U+9A71,U+9F50}

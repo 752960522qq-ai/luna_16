@@ -1,0 +1,29 @@
+[
+  {
+    "file": "engine-katyusha.ogg",
+    "source": "https://freesound.org/people/craigsmith/sounds/487151/",
+    "license": "CC0-1.0",
+    "start": 1.1,
+    "duration": 3.68,
+    "loop": true,
+    "sha256": "1429820a17d2b1fbc66ac80c78ea0c6348a3178d8194216eb483e6654a8ac4cf"
+  },
+  {
+    "file": "po2-engine.ogg",
+    "source": "https://freesound.org/people/Breviceps/sounds/515293/",
+    "license": "CC0-1.0",
+    "start": 9,
+    "duration": 4.28,
+    "loop": true,
+    "sha256": "8ab0c6c4da2eae3c040c6794552b3cb943f2907d8b0e6ff0931f4e955d10ca7f"
+  },
+  {
+    "file": "rocket-launch.ogg",
+    "source": "https://freesound.org/people/qubodup/sounds/162380/",
+    "license": "CC0-1.0",
+    "start": 0.76,
+    "duration": 0.56,
+    "loop": false,
+    "sha256": "0b34ace9d1f7b53c93112004c7a5a1ae5b623192e7b336f1fa2664cd4d8cb91e"
+  }
+]

@@ -7,7 +7,7 @@
   const sources=players.filter(p=>p.hp>0).map(p=>({p,contacts:[...p.intel.contacts].filter(([,c])=>c.visible&&!c.shared),air:[...p.intel.air].filter(([,c])=>c.visible&&!c.shared)}));
   for(const receiver of players){if(receiver.hp<=0)continue;
    for(const source of sources){const sender=source.p;if(sender===receiver||sender.team!==receiver.team)continue;const range=Math.min(radioRange(B,sender),radioRange(B,receiver));if(distance2(sender,receiver)>range*range)continue;
-    for(const kind of ['contacts','air'])for(const [id,c]of source[kind]){const own=receiver.intel[kind].get(id);if(own?.visible&&!own.shared)continue;if(own&&own.t>c.t)continue;receiver.intel[kind].set(id,{...c,shared:true,sourceId:sender.id});}
+    for(const kind of ['contacts','air'])for(const [id,c]of source[kind]){const own=receiver.intel[kind].get(id);if(own?.visible&&!own.shared)continue;if(own&&own.t>c.t)continue;receiver.intel[kind].set(id,{...c,thermal:false,shared:true,sourceId:sender.id});}
    }
   }
  }

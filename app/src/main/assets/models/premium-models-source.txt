@@ -1,0 +1,3 @@
+Supplied by user: tiger_i.glb -> grand_judicator.glb; raketenjagdpanzer_2_war_thunder.glb -> silver_valkyrie.glb and ss11_missile.glb.
+Generated with scripts/prepare-premium-models.mjs. Original geometry, normals, UVs and material textures retained; no triangle simplification. Specular-glossiness materials converted to metal-rough. Textures compressed to WebP; vehicle textures at most 1024px and missile at most 512px.
+Coordinate system: Y up, nose -Z, metre units. Uniform length scaling: 8.45m Tiger and 6.61m Raketenjagdpanzer. Authored antenna height retained. Exact road-contact and gun/launcher mounts measured in premium-model-data.js.

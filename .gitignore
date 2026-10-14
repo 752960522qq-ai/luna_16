@@ -20,3 +20,6 @@ web/.openai/
 
 /dist/
 /release-credentials/
+
+__pycache__/
+*.pyc

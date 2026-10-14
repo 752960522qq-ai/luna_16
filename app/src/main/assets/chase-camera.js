@@ -3,9 +3,9 @@ import * as THREE from './three.module.js';
 export class ChaseCamera{
  constructor(){this.bounds=new THREE.Box3();this.point=new THREE.Vector3();this.size=new THREE.Vector3();this.fit=new THREE.PerspectiveCamera(62,1,.35,8000);this.last=null;this.refits=0;this.localBounds=new Map();}
  update(truck,player,aim,desired,target){
-  const coverage=player.vehicleId==='handlv_missile'?.40:.375;
   const state=[player.vehicleId,player.yaw,aim.yaw,aim.pitch,truck.rotation.x,truck.rotation.z];
   const changed=!this.last||state.some((n,i)=>i===0?n!==this.last[i]:Math.abs(n-this.last[i])>.01);
+  const coverage=['handlv_missile','katyusha'].includes(player.vehicleId)?.4:.375;
   const dx=Math.sin(aim.yaw),dz=-Math.cos(aim.yaw),baseY=truck.position.y;
   if(changed){
    truck.updateMatrixWorld(true);this.bounds.setFromObject(truck);this.bounds.getSize(this.size);
