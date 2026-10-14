@@ -1897,9 +1897,7 @@ export class Renderer {
         show(ally, "ally:" + ally.id, true);
     for (const e of v.enemies || [v.enemy].filter(Boolean))
       show(e, "vehicle:" + e.id);
-    for (const e of v.shots)
-      if (!e.mine && e.kind !== "bullet" && !e.visualOnly)
-        show(e, "shot:" + e.id);
+    // Red world markers identify enemy vehicles only; projectile models remain visible.
     for (const [key, dot] of nodes)
       if (!seen.has(key)) {
         dot.remove();

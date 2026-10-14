@@ -311,13 +311,13 @@
       muzzleHeight: 1.98194, muzzleLength: 0.1,
       weapons: Object.freeze(["artillery", "reconPlane"]),
       artillery: Object.freeze({name: "132mm火箭发射器", caliber: 132,
-        directDamage: 42, directRadius: 0, nearDamage: [0,52], blastRadius: 10,
-        speed: 300, range: 930, cooldown: 0.6, magazine: 16, reload: 70,
+        directDamage: 105, directRadius: 0, nearDamage: [0,52], blastRadius: 10,
+        speed: 300, range: 930, cooldown: 0.6, magazine: 16, reload: 4,
         gravity: 300 * 300 / 928, model: "m13", spread: 1.5 * Math.PI / 180}),
       weaponOverrides: Object.freeze({reconPlane: {name: "PO-2空中侦察", model: "po2", speed: 45,
         recon: 530, hp: 130, life: 30, intelLife: 8, cooldown: 35, forwardLaunch: true}}),
       model: "katyusha", driveType: "6×4轮式驱动", suspension: "钢板弹簧悬挂",
-      description: "16枚火箭独立散布，停车发射；按住连续齐射、松开停止。弹仓打空后70秒装填，可移动装填。PO-2沿前方直线侦察。",
+      description: "16枚火箭独立散布，停车发射；按住连续齐射、松开停止。每4秒补装1枚，弹仓上限16枚，可移动或继续发射。PO-2沿前方直线侦察。",
     }),
     silver_valkyrie: vehicleDefinition({
       id: "silver_valkyrie",
@@ -2164,7 +2164,7 @@
         }
         return { ok: true, id: shot.id };
       }
-      if (weapon === "artillery" && vehicleSpec(p.vehicleId).artillery?.magazine && (p.rocketReloadUntil > this.t || p.rocketAmmo <= 0)) return {ok:false,reason:"火箭弹重新装填中"};
+      if (weapon === "artillery" && vehicleSpec(p.vehicleId).artillery?.magazine && p.rocketAmmo <= 0) return {ok:false,reason:"火箭弹重新装填中"};
       if(p.vehicleId==="katyusha"&&weapon==="artillery"&&(Math.abs(p.speed)>.1||Math.abs(p.drive.throttle)>.1||Math.abs(p.drive.steer)>.1))return {ok:false,reason:"停车后才能发射"};
       if (weapon === "mg") return { ok: false, reason: "按住开火持续射击" };
       if (
@@ -2223,7 +2223,7 @@
       p.stats.launches++;
       if (weapon === "artillery" && vehicleSpec(p.vehicleId).artillery?.magazine) {
         p.rocketAmmo--;
-        if (!p.rocketAmmo) {p.rocketReloadUntil = this.t + 70; p.cd.artillery = 70;}
+        if (!p.rocketReloadUntil) p.rocketReloadUntil = this.t + vehicleSpec(p.vehicleId).artillery.reload;
       }
       if (weapon === "missile" && weaponSpec(p, "missile").magazine) {
         p.missileAmmo--;
@@ -2767,7 +2767,11 @@
         )
           this.crewVoice(p.id, "reloadReady");
         if (p.rocketReloadUntil && this.t >= p.rocketReloadUntil) {
-          p.rocketAmmo = vehicleSpec(p.vehicleId).artillery.magazine; p.rocketReloadUntil = 0; this.crewVoice(p.id,"reloadReady");
+          const magazine=spec.artillery.magazine,interval=spec.artillery.reload;
+          const rounds=Math.min(magazine-p.rocketAmmo,1+Math.floor((this.t-p.rocketReloadUntil)/interval));
+          p.rocketAmmo+=rounds;
+          if(p.rocketAmmo===magazine){p.rocketReloadUntil=0;this.crewVoice(p.id,"reloadReady");}
+          else p.rocketReloadUntil+=rounds*interval;
         }
         if (p.missileReloadUntil && this.t >= p.missileReloadUntil) {
           p.missileAmmo = weaponSpec(p, "missile").magazine;

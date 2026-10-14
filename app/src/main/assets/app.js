@@ -353,6 +353,7 @@ function weaponRows(id, vehicleId) {
         ["整组重新装填", w.reload + "秒"],
       );
   }
+  if(id==="artillery"&&vehicleId==="katyusha")rows.push(["弹仓容量",w.magazine+"枚"],["补装时间","每"+w.reload+"秒一枚，允许边补装边发射"],["发射间隔",w.cooldown+"秒"]);
   if (id === "sam") rows.push(["操控方式", "发射后自动追踪"]);
   if (id === "mg") rows.push(["操控方式", "手动瞄准，按住开火"]);
   return rows;
@@ -978,7 +979,7 @@ function updateHUD() {
           ) + "%"
         : "0%";
     weaponParts.get(b).label.textContent =
-      k === "artillery" && p.vehicleId === "katyusha" ? p.rocketReloadLeft > 0 ? `装填 ${p.rocketReloadLeft.toFixed(1)}s` : `${p.rocketAmmo}/16` : k === "thermal"
+      k === "artillery" && p.vehicleId === "katyusha" ? `${p.rocketAmmo}/16` + (p.rocketReloadLeft > 0 ? ` · 补装 ${p.rocketReloadLeft.toFixed(1)}s` : "") : k === "thermal"
         ? `${Math.round(p.thermalCharge || 0)}% · ${p.thermalActive ? "使用中" : "充能"}`
         : k === "missile" && p.launcherReloadLeft
           ? `左${p.launcherReloadLeft[0] > 0 ? p.launcherReloadLeft[0].toFixed(1) + "s" : "就绪"} / 右${p.launcherReloadLeft[1] > 0 ? p.launcherReloadLeft[1].toFixed(1) + "s" : "就绪"}`

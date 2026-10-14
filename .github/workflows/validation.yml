@@ -15,6 +15,7 @@ jobs:
         run: python3 -m pip install fonttools
       - name: Gameplay rules
         run: |
+          node tests/katyusha-reload.test.cjs
           node tests/hills-voice-update.test.cjs
           node tests/october-gameplay.test.mjs
           node tests/v1-gameplay.test.cjs
@@ -47,6 +48,7 @@ jobs:
             npx playwright install --with-deps chromium
             unset CHROMIUM_EXECUTABLE
           fi
+          SOFTWARE_GL=1 node tests/katyusha-markers-browser.test.cjs
           SOFTWARE_GL=1 node tests/hills-browser.test.cjs
           SOFTWARE_GL=1 node tests/october-browser.test.cjs
           SOFTWARE_GL=1 node tests/v1-browser.test.cjs

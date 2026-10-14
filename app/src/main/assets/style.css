@@ -93,3 +93,5 @@ body.h5-portrait{position:relative;height:var(--h5-height,100dvh)}
 .lineup-section .queue-card small{display:none}
 
 @font-face{font-family:BFUI;src:url("ui-additions.woff") format("woff");font-display:swap;unicode-range:U+4E03,U+4ECA,U+5580,U+597D,U+5F97,U+60AC,U+6302,U+65E5,U+677E,U+793C,U+79CB,U+7AD6,U+7B7E,U+7BAD,U+7C27,U+82CF,U+838E,U+83B7,U+8D60,U+8F6E,U+9001,U+94A2,U+9886,U+9A71,U+9F50}
+
+.enemy-dot:not(.ally-dot){background:rgba(255,110,110,.28);border-color:rgba(255,165,165,.48);box-shadow:0 0 7px rgba(255,110,110,.2)}

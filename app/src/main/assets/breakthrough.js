@@ -24,7 +24,7 @@
       : root.BlindfireStructures;
   const RULES = Object.freeze({
     duration: 600,
-    maxRespawns: 3,
+    maxRespawns: 2,
     respawnDelay: 15,
     outpostBaseHp: 550,
     outpostPerTier: 150,
