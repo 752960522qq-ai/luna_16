@@ -1,3 +1,5 @@
+import {MapLOD} from './map-lod.js';
+import {cityMaterials} from './city-materials.js';
 import {HillsEnvironment} from './hills-environment.js';
 import {articulateKatyusha,articulatePo2} from "./katyusha-parts.js";
 import {
@@ -813,6 +815,7 @@ export class Renderer {
       const materials=new Set();this.landscape.traverse(o=>{o.geometry?.dispose();for(const m of(Array.isArray(o.material)?o.material:[o.material]))if(m&&!sharedMaterials.has(m))materials.add(m);});for(const m of materials){if(m.userData.ownedMap)m.map?.dispose();m.dispose();}
       this.scene.remove(this.landscape);
     }
+    this.mapLOD=new MapLOD();
     this.landscape = new THREE.Group();
     this.landscape.name = "battleLandscape";
     this.scene.add(this.landscape);
@@ -853,18 +856,18 @@ export class Renderer {
       new THREE.Mesh(geo, !city&&this.hillsEnvironment?.textures ? this.hillsEnvironment.material("grass",(B.W+1000)/6) : mat("#ffffff", { vertexColors: true })),
     );
     if (this.landscapeMap === "city") {
-      for (let n = 0; n <= 2000; n += 200) {
+      for (let n = 0; n <= B.W; n += 200) {
         this.road(
           [
             [n, 0],
-            [n, 2000],
+            [n, B.H],
           ],
           17,
         );
         this.road(
           [
             [0, n],
-            [2000, n],
+            [B.W, n],
           ],
           17,
         );
@@ -916,6 +919,7 @@ export class Renderer {
         6,
       );
     }
+    const wallVariants=city?cityMaterials():null;
     const cityWall = mat("#929699"),
       factoryWall = mat("#6e767b"),
       commercialWall = mat("#a5a8ab"),
@@ -938,7 +942,7 @@ export class Renderer {
             ? factoryWall
             : b.district === "commercial"
               ? commercialWall
-              : cityWall
+              : wallVariants[(Math.floor(b.x/80)+Math.floor(b.z/80))%wallVariants.length]
           : hillWall,
       );
       box(
@@ -966,6 +970,7 @@ export class Renderer {
         for (const x of [-b.w * 0.3, 0, b.w * 0.3])
           box(g, x, 1.8, -b.d / 2 - 0.3, 18, 3.6, 0.35, palette.glass);
       }
+      if(city)for(const m of g.children){if(!m.material.map)continue;const uv=m.geometry.attributes.uv;const p=m.geometry.attributes.position;for(let i=0;i<uv.count;i++){const normal=m.geometry.attributes.normal;uv.setXY(i,(Math.abs(normal.getX(i))>.5?p.getZ(i):p.getX(i))/8,p.getY(i)/8);}}
       buildingGroups.push(g);
     }
     const batches = new Map();
@@ -978,7 +983,7 @@ export class Renderer {
       });
     }
     for (const {material, geometries} of batches.values()) {
-      this.landscape.add(new THREE.Mesh(mergeGeometries(geometries), material));
+      const mesh=new THREE.Mesh(mergeGeometries(geometries),material);this.landscape.add(mesh);if(material===palette.glass||material===palette.dark)this.mapLOD.add(mesh,null,450);
       for (const g of geometries) g.dispose();
     }
     let seed = 7919;
@@ -986,7 +991,7 @@ export class Renderer {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 4294967296;
     };
-    if(!city&&this.hillsEnvironment?.models)this.hillsEnvironment.populate(this.landscape,B);
+    if(this.hillsEnvironment?.models)this.hillsEnvironment.populate(this.landscape,B,{lod:this.mapLOD,rocks:!city,grass:!city});
     else {
     const treeCount = B.TREES.length,
       trees = new THREE.InstancedMesh(
@@ -1127,52 +1132,15 @@ export class Renderer {
       this.shadows.push(shadow);
     }
   }
-  road(points, width) {
-    const vertices = [],
-      marks = [];
-    for (let j = 0; j < points.length - 1; j++) {
-      const [a, b] = [points[j], points[j + 1]],
-        len = Math.hypot(b[0] - a[0], b[1] - a[1]),
-        nx = -(b[1] - a[1]) / len,
-        nz = (b[0] - a[0]) / len;
-      for (let i = 0; i < len; i += 12) {
-        const s = i / len,
-          t = Math.min(1, (i + 12) / len),
-          q = (f, o) => {
-            const x = a[0] + (b[0] - a[0]) * f + nx * o,
-              z = a[1] + (b[1] - a[1]) * f + nz * o;
-            return [x, B.terrain(x, z) + 0.13, z];
-          };
-        vertices.push(
-          ...q(s, -width),
-          ...q(t, -width),
-          ...q(s, width),
-          ...q(t, -width),
-          ...q(t, width),
-          ...q(s, width),
-        );
-        if (i % 36 < 12)
-          marks.push(
-            ...q(s, -0.24),
-            ...q(t, -0.24),
-            ...q(s, 0.24),
-            ...q(t, -0.24),
-            ...q(t, 0.24),
-            ...q(s, 0.24),
-          );
-      }
+  road(points,width){
+    const scale=this.landscapeMap==='city'?1:B.W/2000;points=points.map(([x,z])=>[x*scale,z*scale]);const vertices=[],marks=[];
+    for(let j=0;j<points.length-1;j++){
+      const[a,b]=[points[j],points[j+1]],length=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])/length,nz=(b[0]-a[0])/length;
+      const q=(d,o,y)=>{const x=a[0]+(b[0]-a[0])*d/length+nx*o,z=a[1]+(b[1]-a[1])*d/length+nz*o;return[x,B.terrain(x,z)+y,z];};
+      for(let d=0;d<length;d+=4){const end=Math.min(length,d+4),steps=Math.ceil(width);for(let w=0;w<steps;w++){const lo=-width+w*2*width/steps,hi=-width+(w+1)*2*width/steps;vertices.push(...q(d,lo,.2),...q(d,hi,.2),...q(end,lo,.2),...q(d,hi,.2),...q(end,hi,.2),...q(end,lo,.2));}if(d%36<12)marks.push(...q(d,-.2,.25),...q(d,.2,.25),...q(end,-.2,.25),...q(d,.2,.25),...q(end,.2,.25),...q(end,-.2,.25));}
     }
-    for (const [v, color] of [
-      [vertices, "#5c625a"],
-      [marks, "#bfc2aa"],
-    ]) {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
-      if(v===vertices&&this.landscapeMap!=="city"&&this.hillsEnvironment?.textures){const uv=[];for(let i=0;i<v.length;i+=3)uv.push(v[i]/5,v[i+2]/5);g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));}
-      g.computeVertexNormals();
-      this.landscape.add(
-        new THREE.Mesh(g, v===vertices&&this.landscapeMap!=="city"&&this.hillsEnvironment?.textures ? this.hillsEnvironment.material("asphalt") : mat(color, { side: THREE.DoubleSide })),
-      );
+    for(const[v,color]of[[vertices,'#5c625a'],[marks,'#bfc2aa']]){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));let material;
+      if(v===vertices&&this.hillsEnvironment?.textures){const uv=[];for(let i=0;i<v.length;i+=3)uv.push(v[i]/6,v[i+2]/6);g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));material=this.hillsEnvironment.material('asphalt');}else material=mat(color);material.side=THREE.DoubleSide;material.polygonOffset=true;material.polygonOffsetFactor=v===vertices?-2:-3;material.polygonOffsetUnits=-2;g.computeVertexNormals();const mesh=new THREE.Mesh(g,material);mesh.name=v===vertices?'asphaltRoad':'roadMarkings';this.landscape.add(mesh);
     }
   }
   resize() {
@@ -1724,6 +1692,7 @@ export class Renderer {
     }
     const scoped = this.gunSight && canUseGunSight(p);
     if (scoped) this.ownTruck.visible = false;
+    this.mapLOD.update(this.camera);
     this.gl.render(this.scene, this.camera);
     if (scoped) this.ownTruck.visible = true;
     if (view) {

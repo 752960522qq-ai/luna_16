@@ -6,7 +6,7 @@
     1,
     2
   ],
-  "orientation": "portrait",
+  "orientation": "landscape",
   "edition": "h5",
   "signing": "none-web-zip",
   "hosting": "Update the existing TapTap game and retain its storage origin. Never rename the save key or clear storage on startup."

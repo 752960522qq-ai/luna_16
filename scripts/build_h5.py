@@ -8,6 +8,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True, help='TapTap H5 upload ZIP')
+parser.add_argument('--version',default='1.0.1')
 parser.add_argument('--directory', help='Keep unpacked files here for local preview')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
@@ -21,12 +22,18 @@ shutil.copytree(root / 'app' / 'src' / 'main' / 'assets', stage)
 (stage / 'net-config.js').write_text("export const REMOTE_ENABLED=false;\nexport const REMOTE_ORIGIN='';\nexport const EDITION='h5';\n", encoding='utf-8')
 index = stage / 'index.html'
 text = index.read_text(encoding='utf-8')
-text = text.replace('单人战术训练与安卓同网对战。', '竖屏3D战术训练：手动驾驶、火炮弹道、无人机侦察与困难AI。')
+text = text.replace('单人战术训练与安卓同网对战。', '横屏3D战术训练：手动驾驶、火炮弹道、无人机侦察与困难AI。')
 text = text.replace('id="openLAN" class="lan-button"', 'id="openLAN" class="lan-button hidden"')
 text = text.replace('第三人称战术对战', '第三人称战术训练')
-text = text.replace('</head>', '<meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><link rel="manifest" href="manifest.webmanifest"></head>')
+text = text.replace('</head>', '<meta name="screen-orientation" content="landscape"><meta name="x5-orientation" content="landscape"><link rel="manifest" href="manifest.webmanifest"></head>')
+text=text.replace('V1.0</','V'+args.version+'</')
 index.write_text(text, encoding='utf-8')
-(stage / 'manifest.webmanifest').write_text(json.dumps({'name':'飞棍来咯','short_name':'飞棍来咯','start_url':'./index.html','scope':'./','display':'fullscreen','orientation':'portrait','background_color':'#142720','theme_color':'#142720'}, ensure_ascii=False), encoding='utf-8')
+(stage / 'version.json').write_text(json.dumps({'version':args.version,'edition':'locked','orientation':'landscape'},ensure_ascii=False),encoding='utf-8')
+app=stage/'app.js'
+code=app.read_text(encoding='utf-8')
+code=code.replace('new URLSearchParams(location.search).get("fullUnlockTest") === "1"','false').replace('new URLSearchParams(location.search).get("infiniteCoins") === "1"','false')
+app.write_text(code,encoding='utf-8')
+(stage / 'manifest.webmanifest').write_text(json.dumps({'name':'飞棍来咯','short_name':'飞棍来咯','start_url':'./index.html','scope':'./','display':'fullscreen','orientation':'landscape','background_color':'#142720','theme_color':'#142720'}, ensure_ascii=False), encoding='utf-8')
 output = Path(args.output).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
 package_root = compat['root_folder']
@@ -40,4 +47,5 @@ with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compressleve
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, file.read_bytes())
+assert output.stat().st_size < 300 * 1024 * 1024
 print(f'H5 upload ZIP built: {output} ({output.stat().st_size} bytes); entry: {package_root}/index.html; preview: {stage}')
