@@ -1,21 +1,21 @@
 /* Oriented ground collision: broad-phase rejection before exact footprint tests. */
 (function(root){
  'use strict';
- function create({vehicleSpec,BUILDINGS,TREES,ROCKS=[],bounds,inLake,lakeOverlap}){
+ function create({vehicleSpec,BUILDINGS,TREES,ROCKS=[],bounds,inLake,lakeOverlap,nearbyBuildings,nearbyTrees,nearbyRocks}){
   return function vehicleClear(x,z,p){
     const {W,H}=bounds(),spec=vehicleSpec(p.vehicleId),d=spec.dimensions,hw=d.width/2,hl=d.length/2,c=Math.cos(p.yaw),s=Math.sin(p.yaw),offset=spec.collisionOffset||0;x+=s*offset;z-=c*offset;
     const ex=Math.abs(c)*hw+Math.abs(s)*hl,ez=Math.abs(s)*hw+Math.abs(c)*hl;
     if(x-ex<18||x+ex>W-18||z-ez<18||z+ez>H-18)return false;
-    for(const b of BUILDINGS){
+    for(const b of nearbyBuildings?nearbyBuildings(x-ex,z-ez,x+ex,z+ez):BUILDINGS){
       const dx=b.x-x,dz=b.z-z;
       if(Math.abs(dx)<ex+b.w/2&&Math.abs(dz)<ez+b.d/2&&
         Math.abs(c*dx+s*dz)<hw+Math.abs(c)*b.w/2+Math.abs(s)*b.d/2&&
         Math.abs(s*dx-c*dz)<hl+Math.abs(s)*b.w/2+Math.abs(c)*b.d/2)return false;
     }
-    for(const t of TREES){const dx=(t.collisionX??t.x)-x,dz=(t.collisionZ??t.z)-z;if(Math.abs(dx)>ex+t.radius||Math.abs(dz)>ez+t.radius)continue;const lx=c*dx+s*dz,lz=s*dx-c*dz;
+    for(const t of nearbyTrees?nearbyTrees(x-ex,z-ez,x+ex,z+ez):TREES){const dx=(t.collisionX??t.x)-x,dz=(t.collisionZ??t.z)-z;if(Math.abs(dx)>ex+t.radius||Math.abs(dz)>ez+t.radius)continue;const lx=c*dx+s*dz,lz=s*dx-c*dz;
       if(Math.hypot(Math.max(0,Math.abs(lx)-hw),Math.max(0,Math.abs(lz)-hl))<t.radius)return false;
     }
-    for(const r of ROCKS)if(overlaps({...p,x:x-s*offset,z:z+c*offset},{x:r.x,z:r.z,yaw:r.yaw,vehicleId:r},vehicleSpec,d=>d))return false;
+    for(const r of nearbyRocks?nearbyRocks(x-ex,z-ez,x+ex,z+ez):ROCKS)if(overlaps({...p,x:x-s*offset,z:z+c*offset},{x:r.x,z:r.z,yaw:r.yaw,vehicleId:r},vehicleSpec,d=>d))return false;
     if(lakeOverlap(x,z,ex,ez))for(const sx of[-1,0,1])for(const sz of[-1,0,1])if(inLake(x+c*hw*sx+s*hl*sz,z+s*hw*sx-c*hl*sz))return false;
     return true;
   }

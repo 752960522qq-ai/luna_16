@@ -11,12 +11,13 @@
    return forts.find(s=>s.label==='ABC'[(p.id%5)%3])||forts.sort((a,b)=>B.dist(p,a)-B.dist(p,b))[0];
   }
   function chooseGoal(e,p){
-   const enemy=p.intel.lock,valid=enemy&&e.t-enemy.t<(enemy.life??B.intelLife(p));
+   const enemy=p.vehicleId==='crimson_steel'?e.crimsonTarget(p):p.intel.lock,valid=enemy&&e.t-enemy.t<(enemy.life??B.intelLife(p));
    // Assault vehicles only interrupt their objective for an immediate threat.
    // One vehicle per team also responds to detected intruders near its front.
    const defender=p.id%5===4;
-   if(valid&&(B.dist(p,enemy)<300||(defender&&(p.team===0?enemy.z>1650:enemy.z<850))))return enemy;
-   return objective(e,p)||(valid?enemy:null);
+   if(p.vehicleId==='crimson_steel'&&valid){const fort=objective(e,p);if(B.dist(p,enemy)<500&&(!fort||B.dist(enemy,fort)<220||B.dist(p,enemy)<300))return enemy;return fort||enemy;}
+   if(valid&&(B.dist(p,enemy)<(p.vehicleId==='crimson_steel'?500:300)||(defender&&(p.team===0?enemy.z>1650:enemy.z<850))))return enemy;
+   return objective(e,p)||(valid?enemy:null)||(e.arenaSurvival?{x:1250+Math.sin(e.t*.03+p.id)*350,z:1250+Math.cos(e.t*.03+p.id)*350,y:B.terrain(1250,1250),h:2}:null);
   }
   function guide(e,p,s,goal,dt){
    const q=point(goal),yaw=Math.atan2(q.x-s.x,s.z-q.z),pitch=Math.atan2(q.y-s.y,Math.max(1,B.dist(s,q)));
@@ -63,8 +64,8 @@
    else if(air&&has('mg')){
     const d=B.direction(air.yaw,air.pitch),lead=B.dist3({...p,y:p.y+2},air)/B.weaponSpec(p,'mg').speed;
     const q={x:air.x+d.x*air.speed*lead,y:air.y+d.y*air.speed*lead,z:air.z+d.z*air.speed*lead};
-    p.selected='mg';e.setAim(p,{yaw:Math.atan2(q.x-p.x,p.z-q.z),pitch:Math.atan2(q.y-p.y-2,Math.max(1,B.dist(p,q)))});
-    p.mg=true;p.drive={throttle:0,steer:0};return true;
+    p.selected='mg';e.setAim(p,humanAim(e,p,{yaw:Math.atan2(q.x-p.x,p.z-q.z),pitch:Math.atan2(q.y-p.y-2,Math.max(1,B.dist(p,q)))}));
+    p.mg=!p.botTuning||e.random()<p.botTuning.interceptChance;p.drive={throttle:0,steer:0};return true;
    }
    else if(has('repair')&&!p.repairUsed&&p.hp<p.maxHp*.35)kind='repair';
    else if(ready('rapidFire')&&B.dist(p,goal)<480)kind='rapidFire';
@@ -80,15 +81,18 @@
    }
    brain.tactic={kind,until:e.t+4};return fireEquipment(e,p,brain,kind,goal);
   }
+  function humanAim(e,p,aim){const t=p.botTuning;if(!t)return aim;const n=p.botAimNoise||(p.botAimNoise={yaw:(e.random()*2-1)*t.aimError,pitch:(e.random()*2-1)*t.aimError*.6});return{...aim,yaw:aim.yaw+n.yaw,pitch:aim.pitch+n.pitch};}
   function mainAttack(e,p,brain,goal){
    const kind=p.weapons.includes('missile')?'missile':p.weapons.includes('tankCannon')?'tankCannon':p.weapons.includes('autocannon')?'autocannon':'artillery';
    p.selected=kind;p.mg=false;
    const spec=B.weaponSpec(p,kind),range=spec.range||Math.min(1000,spec.speed*spec.life),d=B.dist(p,goal);
-   const desired=Math.min(range*(kind==='artillery'?.8:.7),kind==='artillery'?850:kind==='missile'?650:400);
+   const desired=p.vehicleId==='crimson_steel'?425:Math.min(range*(kind==='artillery'?.8:.7),kind==='artillery'?850:kind==='missile'?650:400);
    const arc=kind==='artillery';
    let solution=null;
    if(arc){const old=brain.gunSolution;if(old&&old.id===goal.id&&e.t-old.at<.2&&B.dist(p,old)<1&&B.dist(goal,old.goal)<2)solution=old.aim;else{solution=B.solveArtillery(p,goal);brain.gunSolution={id:goal.id,at:e.t,x:p.x,z:p.z,goal:{x:goal.x,z:goal.z},aim:solution};}}
    const clear=arc?!!solution:e.clearShot(p,goal);
+   if(p.vehicleId==='crimson_steel'&&e.crimsonTactics(p,goal))return;
+   if(p.vehicleId==='crimson_steel'&&!clear&&goal.vehicleId&&e.crimsonFlank(p,goal))return;
    if(d>desired||!clear){e.approach(p,goal,range);return;}
    p.drive={throttle:0,steer:0};
    if(Math.abs(p.speed)>1)return;
@@ -98,17 +102,20 @@
    if(v.launcherFixed||v.launcherYaw!==undefined&&Math.abs(error)>v.launcherYaw*.9||v.turretYaw!==undefined&&Math.abs(error)>v.turretYaw*.9){
     if(Math.abs(error)>.04){if(p.spadeDeployed){p.selected='spade';e.command(p.id,{type:'fire'});p.selected=kind;}p.drive.steer=B.clamp(error*2,-1,1);return;}
    }
-   e.setAim(p,aim);
+   e.setAim(p,humanAim(e,p,aim));
    if(arc&&e.hasWeapon(p,'spade')&&!p.spadeDeployed){p.selected='spade';e.command(p.id,{type:'fire'});p.selected=kind;}
-   if(!p.cd[kind])e.command(p.id,{type:'fire'});
+   if(p.vehicleId==='crimson_steel'&&Math.abs(B.wrap(p.aim[kind].yaw-aim.yaw))>.04)return;
+   if(!p.cd[kind]&&e.t>=(brain.nextShotAt||0)){const fired=e.command(p.id,{type:'fire'});if(fired.ok){brain.nextShotAt=e.t+(p.botTuning?.fireDelay||0);p.botAimNoise=null;}}
   }
   function run(e,dt){for(const p of e.players){
-   if(p.id===0||p.hp<=0)continue;
+   if((e.humanSlots?e.humanSlots.has(p.id):p.id===0)||p.hp<=0)continue;
    p.controlAt=e.t;
+   if(e.humanSlots&&!p.pilot&&!p.guidedMissile){if(e.t<(p.botDecisionAt||0))continue;p.botDecisionAt=e.t+(p.botTuning?.reaction||.12)+e.random()*.15;}
    const brain=p.battleBrain||(p.battleBrain={nextTactic:0,tactic:null,flightGoal:null});
    const goal=chooseGoal(e,p);if(!goal){p.drive={throttle:0,steer:0};continue;}
    if(p.repairUntil){p.drive={throttle:0,steer:0};continue;}
-   if(B.Wire.isWire(p)){p.scopeActive=true;if(!e.restricted(p)&&!p.thermalActive&&p.thermalCharge>30)p.thermalActive=true;if(p.guidedMissile){p.selected='missile';const q=point(goal);e.setAim(p,B.Wire.aimAt(B,p,q));p.drive={throttle:0,steer:0};p.mg=false;continue;}}
+   if(e.crimsonEmergency(p))continue;
+   if(B.Wire.isWire(p)){p.scopeActive=true;if(!e.restricted(p)&&!p.thermalActive&&p.thermalCharge>30)p.thermalActive=true;if(p.guidedMissile){p.selected='missile';const q=point(goal);e.setAim(p,humanAim(e,p,B.Wire.aimAt(B,p,q)));p.drive={throttle:0,steer:0};p.mg=false;continue;}}
    if(pilot(e,p,brain,goal,dt))continue;
    if(p.burstRemaining){p.drive={throttle:0,steer:0};continue;}
    if(equipment(e,p,brain,goal))continue;

@@ -38,6 +38,7 @@ export function articulateBear(scene,scale){
  return {turret,barrel:pitch,wheels,tracks};
 }
 export function rollTracks(track,travel){
+ if(track.lastTravel===travel)return;track.lastTravel=travel;
  // Separate rigid tread pads circulate around both closed belts without stretching vertices.
  const L=5.29,R=.59,cy=-.53,cz=-.165,per=2*L+2*Math.PI*R,dummy=new THREE.Object3D();
  for(let side=0;side<2;side++)for(let i=0;i<track.count;i++){
@@ -73,7 +74,7 @@ export function animateBelts(scene,groups){
  return {belts};
 }
 export function rollBelts(tracks,travel){
- for(const belt of tracks.belts){if(belt.gpu){belt.uniform.value=(typeof travel==='object'?travel[belt.side]:travel)*(belt.travelSign||1);continue;}const pos=belt.mesh.geometry.attributes.position,normal=belt.mesh.geometry.attributes.normal;for(const e of belt.entries){const q=belt.path(e.s-(typeof travel==='object'?travel[belt.side]:travel)),angle=q.a-e.initial.a,c=Math.cos(angle),s=Math.sin(angle),dy=q.y-e.initial.y,dz=q.z-e.initial.z;for(let i=e.offset;i<e.offset+e.count;i++){const k=i*3,x=belt.rest[k],y=belt.rest[k+1]-e.center.y,z=belt.rest[k+2]-e.center.z;pos.setXYZ(i,x,e.center.y+dy+c*y-s*z,e.center.z+dz+s*y+c*z);if(normal){const ny=belt.normals[k+1],nz=belt.normals[k+2];normal.setXYZ(i,belt.normals[k],c*ny-s*nz,s*ny+c*nz);}}}pos.needsUpdate=true;if(normal)normal.needsUpdate=true;}
+ for(const belt of tracks.belts){const current=(typeof travel==='object'?travel[belt.side]:travel);if(belt.lastTravel===current)continue;belt.lastTravel=current;if(belt.gpu){belt.uniform.value=(typeof travel==='object'?travel[belt.side]:travel)*(belt.travelSign||1);continue;}const pos=belt.mesh.geometry.attributes.position,normal=belt.mesh.geometry.attributes.normal;for(const e of belt.entries){const q=belt.path(e.s-(typeof travel==='object'?travel[belt.side]:travel)),angle=q.a-e.initial.a,c=Math.cos(angle),s=Math.sin(angle),dy=q.y-e.initial.y,dz=q.z-e.initial.z;for(let i=e.offset;i<e.offset+e.count;i++){const k=i*3,x=belt.rest[k],y=belt.rest[k+1]-e.center.y,z=belt.rest[k+2]-e.center.z;pos.setXYZ(i,x,e.center.y+dy+c*y-s*z,e.center.z+dz+s*y+c*z);if(normal){const ny=belt.normals[k+1],nz=belt.normals[k+2];normal.setXYZ(i,belt.normals[k],c*ny-s*nz,s*ny+c*nz);}}}pos.needsUpdate=true;if(normal)normal.needsUpdate=true;}
 }
 export function articulateKFZ(scene){
  scene.updateMatrixWorld(true);const inverse=scene.matrixWorld.clone().invert(),wheels=[];

@@ -1,5 +1,5 @@
 const B=window.Blindfire;
-export const RESEARCH_PARENTS={silver_valkyrie:'annihilator_fv',kfz_artillery:'gladiator_kfz',warhorse:'b_tank',annihilator_fv:'handlv_missile',black_turtle:'annihilator_fv',hero_tank:'warhorse',cougar_artillery:'kfz_artillery',longnose_artillery:'cougar_artillery'};
+export const RESEARCH_PARENTS={crimson_steel:'warhorse',swift_falcon:'kfz_artillery',silver_valkyrie:'annihilator_fv',kfz_artillery:'gladiator_kfz',warhorse:'b_tank',annihilator_fv:'handlv_missile',black_turtle:'annihilator_fv',hero_tank:'warhorse',cougar_artillery:'kfz_artillery',longnose_artillery:'cougar_artillery'};
 function vehicleMarkup(profile,v){
  const owned=profile.owned.includes(v.id),researched=profile.researched.includes(v.id),ready=profile.research[v.branch]>=v.researchCost;
  const currency=v.currency==='gold'?'金条':'战币';

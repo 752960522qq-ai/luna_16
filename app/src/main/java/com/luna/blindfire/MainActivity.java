@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
                     String path = Uri.parse(url).getPath().substring("/assets/".length());
                     if (path.matches("[a-zA-Z0-9_./-]+") && !path.contains("..")) {
                         try {
-                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".glb") ? "model/gltf-binary" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".mp3") ? "audio/mpeg" : path.endsWith(".wav") ? "audio/wav" : path.endsWith(".webp") ? "image/webp" : path.endsWith(".woff") ? "font/woff" : "text/html";
+                            String mime = path.endsWith(".js") ? "application/javascript" : path.endsWith(".css") ? "text/css" : path.endsWith(".glb") ? "model/gltf-binary" : path.endsWith(".svg") ? "image/svg+xml" : path.endsWith(".mp3") ? "audio/mpeg" : path.endsWith(".wav") ? "audio/wav" : path.endsWith(".png") ? "image/png" : (path.endsWith(".jpg") || path.endsWith(".jpeg")) ? "image/jpeg" : path.endsWith(".webp") ? "image/webp" : path.endsWith(".woff") ? "font/woff" : "text/html";
                             return new WebResourceResponse(mime, "UTF-8", getAssets().open(path));
                         } catch (IOException ignored) {}
                     }
@@ -73,7 +73,7 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return !url.equals(ORIGIN + "index.html") && !url.startsWith(ORIGIN + "index.html?"); }
         });
         game.addJavascriptInterface(new Bridge(), "Native");
-        setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.FULL_UNLOCK_TEST ? "?fullUnlockTest=1" : BuildConfig.INFINITE_COINS ? "?infiniteCoins=1" : ""));
+        setContentView(game); game.loadUrl(ORIGIN + "index.html" + (BuildConfig.COSMETIC_TEST ? "?cosmeticTest=1" : BuildConfig.FULL_UNLOCK_TEST ? "?fullUnlockTest=1" : BuildConfig.INFINITE_COINS ? "?infiniteCoins=1" : ""));
     }
     private void emitCrewVoice(String role,String data){runOnUiThread(()->{if(game!=null)game.evaluateJavascript("window.onNativeCrewVoice && window.onNativeCrewVoice("+JSONObject.quote(role)+","+JSONObject.quote(data)+")",null);});}
     private void prepareCrewVoices(){crewSpeechRequested=true;if(!crewSpeechReady){if(crewSpeechInitialized)for(String role:new String[]{"driver","gunner","loader","radio"})emitCrewVoice(role,"");return;}String[] roles={"driver","gunner","loader","radio"},texts={"驾驶员就位","炮长就位","二炮手就位","无线电员就位"};for(int i=0;i<roles.length;i++)crewSpeech.synthesizeToFile(texts[i],new Bundle(),new File(getCacheDir(),"crew-ready-"+roles[i]+".wav"),roles[i]);}

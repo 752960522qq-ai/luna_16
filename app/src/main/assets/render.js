@@ -1,3 +1,11 @@
+import {lowVehicle,useLowVehicle} from './vehicle-lod.js';
+import {VehiclePresentation,BattleRenderBudget} from './vehicle-presentation.js';
+import {pickVehicleSurface} from './cosmetic-picking.js';
+import {applyCharmWear} from './cosmetic-wear.js';
+import {applyCosmetics,swingCosmetics,charmModel,ensureCharm,prepareCosmetic,onCosmeticTextureReady,clearCosmetics} from './cosmetic-render.js';
+import {articulateCrimson} from './crimson-parts.js';
+import {articulateFalcon} from './su100p-parts.js';
+import {batchBuildings,freezeStaticScenery} from './scenery-batches.js';
 import {MapLOD} from './map-lod.js';
 import {cityMaterials} from './city-materials.js';
 import {HillsEnvironment} from './hills-environment.js';
@@ -622,6 +630,10 @@ export class Renderer {
         (await loader.loadAsync("models/humber_fv.glb")).scene,
       );
     }
+    const crimson=articulateCrimson((await loader.loadAsync('models/crimson_steel.glb')).scene);
+    this.vehicleModels[0].crimson_steel=crimson;this.vehicleModels[1].crimson_steel=this.cloneVehicle(crimson);
+    const falcon=articulateFalcon((await loader.loadAsync("models/su100p.glb")).scene);
+    this.vehicleModels[0].swift_falcon=falcon;this.vehicleModels[1].swift_falcon=this.cloneVehicle(falcon);
     for (const models of this.vehicleModels)
       for (const id of [
         "silver_valkyrie",
@@ -633,6 +645,8 @@ export class Renderer {
         "cougar_artillery",
         "warhorse",
         "gladiator_kfz",
+        "crimson_steel",
+        "swift_falcon",
       ]) {
         const a = models[id],
           bounds = new THREE.Box3();
@@ -776,11 +790,12 @@ export class Renderer {
           };
           mesh.material.customProgramCacheKey = () =>
             source.customProgramCacheKey();
-          return { ...b, mesh, uniform };
+          if(!b.gpu)mesh.geometry=b.mesh.geometry.clone();
+          return { ...b, mesh, uniform, lastTravel:undefined };
         }),
       };
     else if (asset.tracks)
-      copy.tracks = { ...asset.tracks, mesh: map.get(asset.tracks.mesh) };
+      copy.tracks = { ...asset.tracks, mesh: map.get(asset.tracks.mesh), lastTravel:undefined };
     return copy;
   }
   switchVehicle(g, role, id, friendly = false) {
@@ -805,6 +820,7 @@ export class Renderer {
       }
       return;
     }
+    clearCosmetics(g);
     if(!g.userData.model)this.disposeGroup(g);
     g.clear();
     g.add(asset.node);
@@ -812,7 +828,8 @@ export class Renderer {
   }
   createLandscape(preserve = false) {
     if (this.landscape) {
-      const materials=new Set();this.landscape.traverse(o=>{o.geometry?.dispose();for(const m of(Array.isArray(o.material)?o.material:[o.material]))if(m&&!sharedMaterials.has(m))materials.add(m);});for(const m of materials){if(m.userData.ownedMap)m.map?.dispose();m.dispose();}
+      const materials=new Set(),geometries=new Set();this.landscape.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.isInstancedMesh)o.dispose();for(const m of(Array.isArray(o.material)?o.material:[o.material]))if(m&&!sharedMaterials.has(m))materials.add(m);});for(const g of geometries)g.dispose();for(const m of materials){if(m.userData.ownedMap)m.map?.dispose();m.dispose();}
+      this.hillsEnvironment?.farMaterials?.dispose();
       this.scene.remove(this.landscape);
     }
     this.mapLOD=new MapLOD();
@@ -973,19 +990,7 @@ export class Renderer {
       if(city)for(const m of g.children){if(!m.material.map)continue;const uv=m.geometry.attributes.uv;const p=m.geometry.attributes.position;for(let i=0;i<uv.count;i++){const normal=m.geometry.attributes.normal;uv.setXY(i,(Math.abs(normal.getX(i))>.5?p.getZ(i):p.getX(i))/8,p.getY(i)/8);}}
       buildingGroups.push(g);
     }
-    const batches = new Map();
-    for (const g of buildingGroups) {
-      g.updateMatrixWorld(true);
-      g.traverse((o) => {
-        if (!o.isMesh) return;
-        const key=`${Math.floor(g.position.x/250)}:${Math.floor(g.position.z/250)}:${o.material.uuid}`;if(!batches.has(key))batches.set(key,{material:o.material,geometries:[]});batches.get(key).geometries.push(o.geometry.clone().applyMatrix4(o.matrixWorld));
-        o.geometry.dispose();
-      });
-    }
-    for (const {material, geometries} of batches.values()) {
-      const mesh=new THREE.Mesh(mergeGeometries(geometries),material);this.landscape.add(mesh);if(material===palette.glass||material===palette.dark)this.mapLOD.add(mesh,null,450);
-      for (const g of geometries) g.dispose();
-    }
+    this.buildingCellCount=batchBuildings(buildingGroups,this.landscape,this.mapLOD);
     let seed = 7919;
     const random = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -1114,6 +1119,7 @@ export class Renderer {
     );
     border.computeLineDistances();
     this.landscape.add(border);
+    freezeStaticScenery(this.landscape);
     for (const old of this.shadows || []) this.scene.remove(old);
     this.shadows = [];
     for (let i = 0; i < 2; i++) {
@@ -1158,11 +1164,17 @@ export class Renderer {
     g.rotation.set(s.pitch, -s.yaw, 0, "YXZ");
   }
   updateTruck(g, p, selected, t) {
+    if(g===this.ownTruck&&this.cosmeticProfile){applyCosmetics(g,this.cosmeticProfile.vehicleStyle(p.vehicleId));swingCosmetics(g,p,t);}
     g.position.set(p.x, p.y, p.z);
     g.rotation.y = -p.yaw;
+    if(g.userData.lowDetail){g.rotation.set(0,-p.yaw,0);g.position.y=p.y+.15;return;}
     applyGroundContact(g, p, B.terrain, this.landscapeMap);
     if (g.userData.model) {
       for(const [i,r]of (g.userData.rockets||[]).entries())r.visible=i>=16-(p.rocketAmmo??16);
+      if(g.userData.vehicleId==='crimson_steel'&&(g.userData.suspensionAt===undefined||t-g.userData.suspensionAt>.1)){
+        g.userData.suspensionAt=t;g.updateMatrixWorld(true);const point=this.suspensionPoint||(this.suspensionPoint=new THREE.Vector3());
+        for(const w of g.userData.wheels){w.restY??=w.pivot.position.y;point.set(w.pivot.position.x,w.restY-w.radius,w.pivot.position.z).applyMatrix4(g.matrixWorld);w.pivot.position.y=w.restY+B.clamp(B.terrain(point.x,point.z)+.15-point.y,-.06,.06);}
+      }
       for (const w of g.userData.wheels || [])
         w.pivot.rotation[w.axis || "y"] =
           (-(w.side && p.trackTravel
@@ -1198,6 +1210,10 @@ export class Renderer {
         g.userData.mgYaw.rotation.y = -B.wrap(mg.yaw - p.yaw);
         g.userData.mgPitch.rotation.x =
           mg.pitch - Math.atan2(m.tip[1] - m.pivot[1], m.pivot[2] - m.tip[2]);
+      }
+      if(g.userData.vehicleId==='crimson_steel'&&g.userData.mgYaw){
+        g.userData.mgYaw.rotation.y=-B.wrap(p.aim.mg.yaw-p.aim.tankCannon.yaw);
+        g.userData.mgPitch.rotation.x=p.aim.mg.pitch-Math.atan2(.02118279,1.27107795);
       }
       if (g.userData.spade) {
         const delta =
@@ -1269,9 +1285,16 @@ export class Renderer {
         view.field.width !== this.landscapeSize)
     )
       this.setMap(view.field.mapId, view.field.width);
+    this.vehiclePresentation ||= new VehiclePresentation();
+    const presentationKey=view?`${view.seed}:${view.field?.mapId}:${view.battleMode}`:'menu';
+    if(presentationKey!==this.presentationKey){this.vehiclePresentation.clear();this.presentationKey=presentationKey;}
+    this.renderBudget ||= new BattleRenderBudget(Math.min(window.devicePixelRatio||1,1.5));
+    const heavy=!!view&&(view.battleMode==='dark_forest'||(view.team?.alive||[]).reduce((a,b)=>a+b,0)>=8);
+    const ratio=this.renderBudget.update(dt,heavy);
+    if(this.gl.getPixelRatio()!==ratio){this.gl.setPixelRatio(ratio);this.resize();}
     const demo = !view;
     const p = view
-      ? view.own
+      ? this.vehiclePresentation.sample('own',view.own,view.t,t)
       : {
           vehicleId: this.menuVehicle || B.DEFAULT_VEHICLE,
           x: 195,
@@ -1282,7 +1305,7 @@ export class Renderer {
           aim: Object.fromEntries(
             Object.keys(B.C).map((k) => [k, { yaw: 0.62, pitch: 0.35 }]),
           ),
-          selected: "missile",
+          selected: B.vehicleSpec(this.menuVehicle || B.DEFAULT_VEHICLE).weapons[0],
           pilot: null,
         };
     this.canvas.classList.toggle(
@@ -1309,8 +1332,9 @@ export class Renderer {
           ]
         : [],
       seen = new Set();
-    for (const enemy of contacts) {
-      const id = enemy.id ?? 1;
+    for (const contact of contacts) {
+      const id = contact.id ?? 1;
+      const enemy=this.vehiclePresentation.sample(id,contact,contact.t??view.t,t);
       seen.add(id);
       let g = this.enemyFleet.get(id);
       if (!g) {
@@ -1325,9 +1349,14 @@ export class Renderer {
         enemy.vehicleId,
         !!view?.team && enemy.team === view.team.id,
       );
+      const low=useLowVehicle(this.camera,enemy,B.vehicleSpec(enemy.vehicleId),this.canvas.clientHeight||390,g.userData.lowDetail);
+      if(low&&!g.userData.lowMesh){g.userData.lowMesh=lowVehicle(B.vehicleSpec(enemy.vehicleId),!!view?.team&&enemy.team===view.team.id);g.add(g.userData.lowMesh);}
+      g.userData.lowDetail=low;
+      if(g.userData.node)g.userData.node.visible=!low;
+      if(g.userData.lowMesh)g.userData.lowMesh.visible=low;
       this.updateTruck(
         g,
-        { ...enemy, speed: 0, aim: enemy.aim || p.aim },
+        { ...enemy, aim: enemy.aim || p.aim },
         enemy.selected || "missile",
         t,
       );
@@ -1355,6 +1384,7 @@ export class Renderer {
       g.userData.thermalHot = hot;
     }
     for (const [id, g] of this.enemyFleet) if (!seen.has(id)) g.visible = false;
+    seen.add('own');this.vehiclePresentation.forgetExcept(seen);
     this.zoneRing ||= (() => {
       const g = new THREE.LineLoop(
         new THREE.BufferGeometry(),
@@ -1464,6 +1494,18 @@ export class Renderer {
         line.material.dispose();
         this.trailMeshes.delete(id);
       }
+    if(!this.smokeMesh){
+      this.smokeMesh=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,2),new THREE.MeshLambertMaterial({color:'#8e9692',transparent:true,opacity:.86,depthWrite:false,side:THREE.DoubleSide}),96);
+      this.smokeMesh.frustumCulled=false;this.scene.add(this.smokeMesh);this.smokeMatrix=new THREE.Matrix4();
+    }
+    let smokeCount=0;
+    for(const s of view?.smokes||[]){for(let i=0;i<3&&smokeCount<96;i++){
+      const age=view.t-s.born,grow=Math.min(1,.4+age*.6),fade=Math.min(1,s.left);
+      this.smokeMatrix.makeScale(s.radius*grow,6*fade,s.radius*grow);
+      this.smokeMatrix.setPosition(s.x+Math.sin(i*2.1)*s.radius*.18,s.y+5,s.z+Math.cos(i*2.1)*s.radius*.18);
+      this.smokeMesh.setMatrixAt(smokeCount++,this.smokeMatrix);
+    }}
+    this.smokeMesh.count=smokeCount;this.smokeMesh.visible=smokeCount>0;this.smokeMesh.instanceMatrix.needsUpdate=true;
     const effectIds = new Set();
     for (const e of view ? view.effects : []) {
       effectIds.add(e.id);
@@ -1480,6 +1522,8 @@ export class Renderer {
             }),
           );
           g.rotation.x = -Math.PI / 2;
+        } else if(e.kind==='gunSmoke'){
+          g=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshLambertMaterial({color:'#9da49b',transparent:true,opacity:.5,depthWrite:false}));
         } else if (e.kind === "muzzle") {
           g = new THREE.Mesh(
             new THREE.SphereGeometry(1, 8, 6),
@@ -1561,12 +1605,12 @@ export class Renderer {
       this.menuPlatform.position.set(p.x, B.terrain(p.x, p.z) + 0.08, p.z);
     if (demo) {
       const height = B.vehicleSpec(p.vehicleId).dimensions.height,
-        length = B.vehicleSpec(p.vehicleId).dimensions.length,
+        length = B.vehicleSpec(p.vehicleId).totalLength || B.vehicleSpec(p.vehicleId).dimensions.length,
         distance = Math.max(7, height * 2.8, length * 0.9);
       desired.set(
-        p.x + distance * 0.8,
-        this.ownTruck.position.y + height + distance * 0.3,
-        p.z - distance * 0.8,
+        p.x + Math.sin(this.menuYaw??Math.PI/4)*distance*1.14*(this.menuZoom||1),
+        this.ownTruck.position.y + height*.55 + Math.sin(this.menuPitch??.35)*distance*(this.menuZoom||1),
+        p.z - Math.cos(this.menuYaw??Math.PI/4)*distance*1.14*(this.menuZoom||1),
       );
       target.set(p.x, this.ownTruck.position.y + height * 0.55, p.z);
       key = "demo" + p.vehicleId;
@@ -1737,15 +1781,19 @@ export class Renderer {
   zoomMap(f) {
     this.mapHeight = B.clamp((this.mapHeight || 800) * f, 140, 2600);
   }
-  showPreview(canvas, id) {
+  async showCharmPreview(canvas,index,wear=0){await ensureCharm(index);if(!canvas.isConnected)return;const source=charmModel(index);if(!source)return;const node=source.clone(true);applyCharmWear(node,wear,index+17);this.vehicleModels[0]['charm-preview']={node};this.showPreview(canvas,'charm-preview');}
+  showPreview(canvas, id, overrideStyle, focusSide) {
+    canvas.dataset.vehicle=id;
     const asset = this.vehicleModels?.[0]?.[id];
     if (!asset) {
       canvas.dataset.vehicle = id;
       return;
     }
-    this.hidePreview();
-    const gl = new THREE.WebGLRenderer({ canvas, antialias: true });
-    gl.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    const previousOrbit=this.preview?.canvas===canvas?this.preview.orbit:null;
+    let gl;
+    if(this.preview?.canvas===canvas){clearCosmetics(this.preview.model);gl=this.preview.gl;this.preview.observer?.disconnect();this.preview.unsubscribe?.();}
+    else{this.hidePreview();gl=new THREE.WebGLRenderer({canvas,antialias:true});}
+    gl.setPixelRatio(Math.min(devicePixelRatio, 2.5));
     gl.setSize(canvas.clientWidth || 300, canvas.clientHeight || 220, false);
     gl.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
@@ -1754,7 +1802,9 @@ export class Renderer {
     const sun = new THREE.DirectionalLight("#fff5df", 2);
     sun.position.set(5, 12, -8);
     scene.add(sun);
-    const model = asset.node.clone(true);
+    const model = new THREE.Group();model.userData.vehicleId=id;model.add(asset.node.clone(true));
+    const style=overrideStyle??this.cosmeticProfile?.vehicleStyle(id,this.customPreviewUid);
+    if(this.cosmeticProfile&&id!=='charm-preview')applyCosmetics(model,style);
     scene.add(model);
     const bounds = new THREE.Box3().setFromObject(model),
       center = bounds.getCenter(new THREE.Vector3()),
@@ -1766,7 +1816,7 @@ export class Renderer {
         0.05,
         200,
       );
-    let yaw = 0.7;
+    let yaw=focusSide?(focusSide==='left'?-Math.PI/2:Math.PI/2):.7,pitch=.28,zoom=1,panY=previousOrbit?.panY||0;if(previousOrbit){pitch=previousOrbit.pitch;zoom=previousOrbit.zoom;if(previousOrbit.side===focusSide)yaw=previousOrbit.yaw;}
     const render = () => {
       const width = canvas.clientWidth || 300,
         height = canvas.clientHeight || 220;
@@ -1774,33 +1824,33 @@ export class Renderer {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       camera.position.set(
-        center.x + Math.sin(yaw) * radius * 3.2,
-        center.y + radius * 1.1,
-        center.z - Math.cos(yaw) * radius * 3.2,
+        center.x + Math.sin(yaw) * Math.cos(pitch) * radius * 3.2 * zoom,
+        center.y + panY + Math.sin(pitch) * radius * 3.2 * zoom,
+        center.z - Math.cos(yaw) * Math.cos(pitch) * radius * 3.2 * zoom,
       );
-      camera.lookAt(center);
+      camera.lookAt(center.x,center.y+panY,center.z);
+      if(this.preview?.model===model)this.preview.orbit={yaw,pitch,zoom,panY,side:focusSide};
       gl.render(scene, camera);
     };
     render();
-    canvas.onpointerdown = (e) => {
-      canvas.setPointerCapture(e.pointerId);
-      canvas._x = e.clientX;
-    };
-    canvas.onpointermove = (e) => {
-      if (canvas.hasPointerCapture(e.pointerId)) {
-        yaw += (e.clientX - canvas._x) * 0.012;
-        canvas._x = e.clientX;
-        render();
-      }
-    };
+    const pointers=new Map();let tap=null;
+    canvas.onpointerdown=e=>{e.preventDefault();e.stopPropagation();canvas.setPointerCapture?.(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});tap=pointers.size===1?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;};
+    canvas.onpointermove=e=>{const prev=pointers.get(e.pointerId);if(!prev)return;if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>7)tap=null;e.preventDefault();const other=[...pointers.entries()].find(([id])=>id!==e.pointerId)?.[1];if(other){const before=Math.hypot(prev.x-other.x,prev.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);panY=Math.max(-radius*1.5,Math.min(radius*1.5,panY+(e.clientY-prev.y)*radius*zoom*.007));if(after>5)zoom=Math.max(.24,Math.min(2,zoom*before/after));}else{yaw+=(e.clientX-prev.x)*.012;pitch=Math.max(-.15,Math.min(1.2,pitch+(e.clientY-prev.y)*.008));}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});render();};
+    canvas.onpointerup=e=>{const point=tap&&tap.id===e.pointerId&&pointers.size===1&&this.preview?.model===model&&this.preview.placementEnabled?pickVehicleSurface(model,camera,canvas.getBoundingClientRect(),e.clientX,e.clientY):null;pointers.delete(e.pointerId);tap=null;if(point)this.preview?.onPlace?.(point);};
+    canvas.onpointercancel=e=>{pointers.delete(e.pointerId);tap=null;};
+    canvas.onwheel=e=>{e.preventDefault();zoom=Math.max(.24,Math.min(2,zoom*Math.exp(e.deltaY*.001)));render();};
+    const zoomBy=f=>{zoom=Math.max(.24,Math.min(2,zoom*f));render();};
+    const panBy=f=>{panY=Math.max(-radius*1.5,Math.min(radius*1.5,panY+f*radius));render();};
+    const unsubscribe=onCosmeticTextureReady(render);
     const observer = new ResizeObserver(render);
-    this.preview = { gl, canvas, camera, observer };
+    this.preview = { gl, canvas, camera, observer, zoomBy, panBy, unsubscribe, model, orbit:{yaw,pitch,zoom,panY,side:focusSide} };
+    if(this.cosmeticProfile&&id!=='charm-preview')prepareCosmetic(style).then(()=>{if(canvas.isConnected&&this.preview?.model===model){applyCosmetics(model,style);render();}});
     observer.observe(canvas);
   }
   hidePreview() {
     if (this.preview) {
-      this.preview.observer?.disconnect();
-      this.preview.canvas.onpointerdown=null;this.preview.canvas.onpointermove=null;this.preview.gl.dispose();this.preview.gl.forceContextLoss?.();
+      this.preview.observer?.disconnect();this.preview.unsubscribe?.();clearCosmetics(this.preview.model);
+      for(const k of['onpointerdown','onpointermove','onpointerup','onpointercancel','onwheel'])this.preview.canvas[k]=null;this.preview.gl.dispose();this.preview.gl.forceContextLoss?.();
       this.preview = null;
     }
   }

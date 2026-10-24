@@ -13,7 +13,7 @@ export class GameAudio {
         const Audio=window.AudioContext||window.webkitAudioContext;this.ctx=new Audio();const ctx=this.ctx;
         this.master=ctx.createGain();this.master.gain.value=.7;const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-18;limiter.knee.value=16;limiter.ratio.value=4;limiter.attack.value=.004;limiter.release.value=.15;
         this.gameGain=ctx.createGain();this.gameGain.gain.value=this.volumes.game;this.gameGain.connect(this.master);this.voiceGain=ctx.createGain();this.voiceGain.gain.value=this.volumes.voice;this.voiceGain.connect(this.master);this.musicGain=ctx.createGain();this.musicGain.gain.value=0;this.musicGain.connect(this.master);this.menuMusic=document.createElement('audio');this.menuMusic.src='audio/menu-music.mp3';this.menuMusic.loop=true;this.menuMusic.preload='metadata';this.ctx.createMediaElementSource(this.menuMusic).connect(this.musicGain);this.analyser=ctx.createAnalyser();this.analyser.fftSize=1024;this.master.connect(limiter);limiter.connect(this.analyser);this.analyser.connect(ctx.destination);
-        for(const[k,seconds]of Object.entries({'bomb-release':.6,spade:.9,'artillery-heavy':2,bomber:.85,uav:.75,missile:1.05,artillery:1.05,tankCannon:1.05,autocannon:.28,reload:1.2,sam:.7,mg:.14,impact:.35,explosion:1.8,confirm:.12}))this.buffers.set(k,this.makeBuffer(k,seconds));
+        for(const[k,seconds]of Object.entries({'crimson-cannon':1.4,'bomb-release':.6,spade:.9,'artillery-heavy':2,bomber:.85,uav:.75,missile:1.05,artillery:1.05,tankCannon:1.05,autocannon:.28,reload:1.2,sam:.7,mg:.14,impact:.35,explosion:1.8,confirm:.12}))this.buffers.set(k,this.makeBuffer(k,seconds));
         this.engineGain=ctx.createGain();this.engineGain.gain.value=0;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=850;filter.connect(this.engineGain);this.engineGain.connect(this.gameGain);
         this.engineOsc=ctx.createOscillator();this.engineOsc.type='sawtooth';this.engineOsc.frequency.value=44;this.engineOsc.connect(filter);this.engineOsc.start();
         this.engineHarmonic=ctx.createOscillator();this.engineHarmonic.type='triangle';this.engineHarmonic.frequency.value=88;const blend=ctx.createGain();blend.gain.value=.35;this.engineHarmonic.connect(blend);blend.connect(filter);this.engineHarmonic.start();
@@ -30,7 +30,7 @@ export class GameAudio {
     for(let i=0;i<data.length;i++){
       const t=i/rate;seed=(Math.imul(seed,1664525)+1013904223)>>>0;const white=seed/2147483648-1;low+=.025*(white-low);mid+=.22*(white-mid);
       let v=0;
-      if(kind==='artillery'||kind==='tankCannon')v=.9*mid*Math.exp(-t/ .12)+Math.sin(2*Math.PI*(65*t-17*t*t))*.65*Math.exp(-t/.28)+low*2.2*Math.exp(-t/.46);
+      if(kind==='crimson-cannon'||kind==='artillery'||kind==='tankCannon')v=.9*mid*Math.exp(-t/ .12)+Math.sin(2*Math.PI*(65*t-17*t*t))*.65*Math.exp(-t/.28)+low*2.2*Math.exp(-t/.46);
       else if(kind==='autocannon')v=(mid*.8+white*.3)*Math.exp(-t/.035)+Math.sin(2*Math.PI*100*t)*.55*Math.exp(-t/.11);
       else if(['reload','bomb-release','spade'].includes(kind)){const pulse=Math.exp(-(((t-.12)/.035)**2))+Math.exp(-(((t-.5)/.06)**2))+Math.exp(-(((t-.95)/.04)**2));v=(mid*.55+Math.sin(2*Math.PI*780*t)*.15)*pulse;}
       else if(kind==='mg')v=(white*.62+mid*.7)*Math.exp(-t/.024)+Math.sin(2*Math.PI*145*t)*.28*Math.exp(-t/.065);
@@ -53,7 +53,7 @@ export class GameAudio {
   event(event){
     if(!this.enabled||!this.ctx||this.ctx.state!=='running'||(!this.buffers.has(event.kind)&&!this.sampleBuffers.has(event.kind))||this.voices.size>=28)return;
     const ctx=this.ctx,source=ctx.createBufferSource(),gain=ctx.createGain(),pan=ctx.createStereoPanner?ctx.createStereoPanner():null;
-    const sample=event.kind==='artillery'&&event.vehicleId==='hero_tank'?'tankCannon':event.kind;source.buffer=this.sampleBuffers.get(sample)||this.buffers.get(event.kind);source.playbackRate.value=event.kind==='autocannon'?.78:event.kind==='artillery'&&event.vehicleId==='kfz_artillery'?1.12:1;gain.gain.value=Math.max(0,Math.min(1,event.gain))*(event.kind==='confirm'?.45:event.kind==='mg'?.38:.6)*(event.kind==='explosion'?1.15:1);source.connect(gain);
+    const sample=event.kind==='artillery'&&event.vehicleId==='swift_falcon'?'swift-falcon-cannon':event.kind==='artillery'&&event.vehicleId==='hero_tank'?'tankCannon':event.kind;source.buffer=this.sampleBuffers.get(sample)||this.buffers.get(event.kind);source.playbackRate.value=event.kind==='autocannon'?.78:event.kind==='artillery'&&event.vehicleId==='kfz_artillery'?1.12:1;gain.gain.value=Math.max(0,Math.min(1,event.gain))*(event.kind==='confirm'?.45:event.kind==='mg'?.38:.6)*(event.kind==='explosion'?1.15:1);source.connect(gain);
     if(pan){pan.pan.value=Math.max(-1,Math.min(1,event.pan));gain.connect(pan);pan.connect(this.gameGain);}else gain.connect(this.gameGain);
     this.voices.add(source);this.counts[event.kind]=(this.counts[event.kind]||0)+1;
     source.onended=()=>{this.voices.delete(source);source.disconnect();gain.disconnect();if(pan)pan.disconnect();};source.start();
@@ -68,6 +68,14 @@ export class GameAudio {
     const tank=own.vehicleId==='b_tank',ratio=Math.min(1,Math.abs(own.speed)/(own.vehicleId==='katyusha'?60/3.6:tank?44/3.6:33));
     this.engineLevel=(tank?.048:.032)+ratio*(tank?.075:.055);this.engineLevel*=own.hp!==0?1:0;this.engineLevel=this.engineLevel*Math.max(0,1-distance/180)**2;
     const t=this.ctx.currentTime,rpm=(tank?32:44)+ratio*(tank?55:53);this.engineOsc.frequency.setTargetAtTime(rpm,t,.13);this.engineHarmonic.frequency.setTargetAtTime(rpm*2,t,.13);const profile=ENGINE_PROFILES[own.vehicleId]||ENGINE_PROFILES.handlv_missile,active=this.sampleLoop('own-engine',profile.clip,profile.rate*(.85+ratio*.35),profile.gain*(own.hp>0?1:0)*(.45+ratio*.6)*Math.max(0,1-distance/180)**2);this.engineGain.gain.setTargetAtTime(active?0:this.engineLevel*1.15,t,.07);
+    if(own.vehicleId==='crimson_steel'){
+      const alive=own.hp>0?1:0,attenuation=Math.max(0,1-distance/180)**2;
+      const speedRatio=Math.min(1,Math.abs(own.speed)/(50/3.6));
+      this.sampleLoop('crimson-accel','crimson-accel',.9+speedRatio*.25,alive*attenuation*.13*speedRatio);
+      this.sampleLoop('crimson-track','crimson-track',.7+speedRatio*.6,alive*attenuation*.10*speedRatio);
+      const yaw=own.aim.tankCannon.yaw-own.yaw,delta=this.crimsonYaw===undefined?0:Math.abs(Math.atan2(Math.sin(yaw-this.crimsonYaw),Math.cos(yaw-this.crimsonYaw)));this.crimsonYaw=yaw;
+      this.sampleLoop('crimson-turret','crimson-turret',1,alive*attenuation*(delta>.00005?.07:0));
+    }else{this.crimsonYaw=undefined;for(const key of ['crimson-accel','crimson-track','crimson-turret'])this.sampleLoop(key,key,1,0);}
     const listener=pilot||own,drone=view.shots.find(s=>s.mine&&s.kind==='uav'),d=drone?Math.hypot(drone.x-listener.x,drone.y-listener.y,drone.z-listener.z):Infinity;
     let plane=null,planeDistance=Infinity,po2=null,po2Distance=Infinity;for(const s of view.shots){if(s.retained)continue;const distance=Math.hypot(s.x-listener.x,s.y-listener.y,s.z-listener.z);if(s.kind==='bomber'&&distance<planeDistance){plane=s;planeDistance=distance;}if(s.model==='po2'&&distance<po2Distance){po2=s;po2Distance=distance;}}const planeLevel=plane?.15*Math.max(0,1-planeDistance/450)**2:0;this.sampleLoop('po2-engine','po2-engine',1,po2?.13*Math.max(0,1-po2Distance/550)**2:0);this.sampleLoop('bomber-engine','bomber-engine',plane?Math.min(1.25,.85+plane.speed/250):1,planeLevel);
     const droneLevel=.06*Math.max(0,1-d/160)**2,recorded=this.sampleLoop('drone','drone-loop',1.15,droneLevel);this.droneGain.gain.setTargetAtTime(recorded?0:droneLevel*1.15,t,.09);
