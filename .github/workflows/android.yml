@@ -36,9 +36,10 @@ jobs:
           javac -encoding UTF-8 -d /tmp/blindfire-tests app/src/main/java/com/luna/blindfire/LanLink.java app/src/main/java/com/luna/blindfire/RemoteHttp.java tests/LanLinkTest.java tests/RemoteHttpTest.java
           java -cp /tmp/blindfire-tests LanLinkTest
           node tests/native-remote.test.mjs
-      - name: Rendered tread checks
+      - name: Match deployment and WebGL tread checks
         run: |
-          node tests/renderer-air-support.test.mjs
+          # The legacy renderer-air-support fixture targets a retired Renderer interface.
+          node tests/match-deployment-flow.test.cjs
           npm install --no-save playwright
           export CHROMIUM_EXECUTABLE="$(command -v google-chrome || command -v chromium || true)"
           if [ -z "$CHROMIUM_EXECUTABLE" ]; then
