@@ -82,25 +82,28 @@
       this.mode = opts.mode || "ai";
       this.battleMode = "breakthrough";
       this.limit = RULES.duration;
+      this.teamSize = [1,3,5,8].includes(opts.teamSize) ? opts.teamSize : 5;
       this.players = [];
       const highest = lineup.reduce((a, b) =>
         B.vehicleSpec(a).tier >= B.vehicleSpec(b).tier ? a : b,
       );
       const candidates = B.matchCandidates(highest);
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < this.teamSize * 2; i++) {
         let queue =
-          i === 0
-            ? lineup
+          (opts.vehicleQueues?.[i] || i === 0 || opts.uniformVehicle === true)
+            ? [...(opts.vehicleQueues?.[i] || lineup)]
             : unique([
                 candidates[Math.floor(this.random() * candidates.length)],
                 ...candidates.sort(() => this.random() - 0.5),
               ]);
+        if(!opts.vehicleQueues?.[i]&&opts.vehicles?.[i]&&B.VEHICLES[opts.vehicles[i]])queue=[opts.vehicles[i]];
         const p = this.player(i, queue[0]);
-        p.team = i < 5 ? 0 : 1;
+        p.team = i < this.teamSize ? 0 : 1;
         p.lineup = queue;
         p.destroyedVehicles = [];
         p.respawns = 0;
         p.respawnAt = 0;
+        p.awaitingDeployment = (opts.deploymentSlots || []).includes(i);
         this.players.push(p);
       }
       this.roomTier = Math.max(
@@ -122,7 +125,7 @@
       const reserved = [
         ...this.structures,
         ...this.players.map((p) => ({
-          x: 1070 + (p.id % 5) * 90,
+          x: 1250 - (this.teamSize - 1) * 45 + (p.id % this.teamSize) * 90,
           z: p.team === 0 ? 2200 : 300,
           w: 60,
           d: 60,
@@ -164,6 +167,7 @@
           baseY: s.y,
           structureId: s.id,
         });
+      B.invalidateSceneryIndex();
       for (const p of this.players) this.spawn(p);
       this.navigation = new Navigation(B);
     }
@@ -208,13 +212,13 @@
       return !this.breach(p.team) && (p.team === 0 ? p.z < 750 : p.z > 1750);
     }
     spawn(p) {
-      const index = p.id % 5,
+      const index = p.id % this.teamSize,
         baseZ = p.team === 0 ? 2200 : 300;
       let chosen = null;
       for (let ring = 0; ring < 15 && !chosen; ring++)
         for (const shift of [0, -1, 1]) {
           const q = {
-            x: 1070 + index * 90 + shift * ring * 12,
+            x: 1250 - (this.teamSize - 1) * 45 + index * 90 + shift * ring * 12,
             z: baseZ + (p.team === 0 ? -1 : 1) * ring * 10,
             yaw: p.team === 0 ? 0 : Math.PI,
           };
@@ -284,6 +288,7 @@
     }
     command(id, a) {
       const p = this.players[id];
+      if (a?.type === "deploy") return B.Engine.prototype.deploy.call(this, id, a.vehicleId);
       if (a?.type === "respawn") return this.respawn(id, a.vehicleId);
       if (a?.type === "throttle") {
         const plane = this.shots.find(
@@ -380,6 +385,7 @@
         this.crewVoice(owner, "kill");
         const index = B.BUILDINGS.findIndex((b) => b.structureId === s.id);
         if (index >= 0) B.BUILDINGS.splice(index, 1);
+        B.invalidateSceneryIndex();
         this.navigation?.refresh();
         if (s.kind === "base") this.finishTeam(1 - s.team, "敌方基地已摧毁");
       }
@@ -431,7 +437,7 @@
               s.recon > 0 &&
               B.dist(s, p) <= TeamRecon.radioRange(B, p) &&
               B.dist(s, foe) <= s.recon &&
-              B.lineOfSight(
+              this.visualLineOfSight(
                 { ...s, y: s.y + s.h + 2 },
                 { ...foe, y: foe.y + 4 },
               ),
@@ -477,7 +483,7 @@
         !B.BUILDINGS.some(
           (box) =>
             box.structureId !== goal.id && B.buildingBlocks(eye, target, box),
-        ) && !B.treeHit(eye, target)
+        ) && !B.treeHit(eye, target) && !this.smokeBlocks(eye,target)
       );
     }
     approach(p, goal, range) {
@@ -539,7 +545,7 @@
     finishTeam(team, reason) {
       if (this.over) return;
       this.winnerTeam = team;
-      super.finish(team === null ? null : team === 0 ? 0 : 5, reason);
+      super.finish(team === null ? null : team === 0 ? 0 : this.teamSize, reason);
       this.crewEvents = this.crewEvents.filter(
         (e) => !["win", "loss"].includes(e.kind),
       );
@@ -548,6 +554,7 @@
           this.crewVoice(p.id, p.team === team ? "win" : "loss");
     }
     update(dt) {
+      if (this.players.some(p => p.awaitingDeployment)) return;
       const frozen = this.players
         .filter((p) => p.hp > 0 && this.restricted(p))
         .map((p) => ({ p, cd: { ...p.cd } }));

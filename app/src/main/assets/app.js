@@ -1,3 +1,11 @@
+import {createCustomizationUI} from './customization-ui.js';
+import {RANKED_ORIGIN} from "./ranked-config.js";
+import {Commander} from "./commander.js";
+import {createCampaignUI,showRosterLoading,cancelRosterLoading,drawKillFeed} from "./campaign-ui.js";
+import {RankedLink} from "./ranked-online.js";
+import {TapRankedLink,nativeRankedAvailable} from "./tap-ranked.js";
+import {tapLeaderboards} from "./tap-leaderboards.js";
+import {bindHonors} from "./honors-ui.js";
 import {bindActivities} from "./activities-ui.js";
 import { DeploymentUI } from "./deployment-ui.js";
 import { editQueue } from "./queue-editor.js";
@@ -30,6 +38,9 @@ const native = window.Native || null,
   isTest = new URLSearchParams(location.search).has("test");
 const difficultyNames = { easy: "新兵", standard: "标准", hard: "困难" };
 let battleMode = "breakthrough";
+let campaignMode="breakthrough",combatRoster=[],rankedRanks={},rankLoading=false,localRanked=false;
+const commander=new Commander();
+let campaignUI,rankQueueTimer=null,rankQueueGeneration=0;
 let engine = null,
   view = null,
   screen = "menu",
@@ -40,6 +51,7 @@ let engine = null,
   connected = false,
   transport = null,
   remote = null;
+let rankedLink=null,rankedMatch=null,rankedSummary="",rankedRank=null;
 let lastFrame = performance.now(),
   lastSend = 0,
   lastHud = 0,
@@ -84,10 +96,18 @@ const profile = new window.BlindfireProgress.Progress(profileStorage, {
   fullUnlockTest:
     new URLSearchParams(location.search).get("fullUnlockTest") === "1",
 });
+if(native&&new URLSearchParams(location.search).get("cosmeticTest")==="1")profile.seedCosmeticTest();
+renderer.cosmeticProfile=profile;
 const lineup = new Lineup(profile, profileStorage);
+const honorUI=bindHonors(profile);
+let lastHonorSave=0,lastHonorInput=performance.now();
+for(const type of ["pointerdown","pointermove","keydown","touchstart"])window.addEventListener(type,()=>{lastHonorInput=performance.now();},{passive:true});
+window.addEventListener("pagehide",()=>profile.save());
+window.addEventListener("blur",()=>{lastHonorInput=-Infinity;});
 let respawnShownFor = null,
   spectating = false;
 let lastKill = 0;
+
 let roundKey = null,
   roundReward = null,
   mapAim = false,
@@ -111,7 +131,7 @@ function walletUI() {
 }
 function refreshMenu() {
   $("startAI").disabled = !renderer.modelsReady;
-  $("startAI").textContent = renderer.modelsReady ? "加入战斗" : "模型加载中…";
+  $("startAI").textContent = renderer.modelsReady ? "进入战役" : "模型加载中…";
   renderer.menuVehicle = lineup.preview;
   const v = VEHICLES[lineup.preview];
   $("menuVehicleName").textContent = v.name;
@@ -144,7 +164,16 @@ function chooseLineup(slot) {
   });
 }
 const deployment = new DeploymentUI(window.Blindfire);
-function showDeployment() {
+let deploymentMatchTimer = null;
+function matchThenDeployment() {
+  if (deploymentMatchTimer) clearTimeout(deploymentMatchTimer);
+  showModal('matching', '<span class="eyebrow">MATCHMAKING</span><h3>正在匹配对手</h3><p>对局准备完成后选择出战载具。</p><p>正在建立战场连接…</p><button id="cancelMatching" class="btn secondary">取消匹配</button>', {
+    cancelMatching: () => { clearTimeout(deploymentMatchTimer); deploymentMatchTimer = null; closeModal(); campaignUI?.enter?.(); },
+  });
+  deploymentMatchTimer = setTimeout(() => { deploymentMatchTimer = null; if (modalKind !== 'matching') return; closeModal(); openDeployment(); }, 900);
+}
+function showDeployment() { matchThenDeployment(); }
+function openDeployment() {
   window.Blindfire.configureMap(battleMap, battleMode === "duel" ? 2000 : 2500);
   renderer.landscapeMap = battleMap;
   renderer.landscapeSize = window.Blindfire.W;
@@ -188,6 +217,28 @@ function showRespawn() {
         updateHUD();
       }
     },
+  });
+}
+function showInitialDeployment() {
+  if (!view?.own?.awaitingDeployment || modalKind === "deployment") return;
+  deployment.show({
+    items: (view.own.lineup || lineup.ids).map(id => ({ id, destroyed: false })),
+    mapId: view.field.mapId,
+    view,
+    initial: true,
+    showModal,
+    closeModal,
+    deploy: id => {
+      if (!rankedLink) paused = false;
+      const result = dispatch({ type: "deploy", vehicleId: id }, true);
+      if (!result.ok) { if (!rankedLink) paused = true; return; }
+      closeModal();
+      selected = view?.own?.selected || selected;
+      renderer.cameraKey = null;
+      resetInput();
+      updateHUD();
+    },
+    cancel: () => { returnMenu(); },
   });
 }
 function warehouse() {
@@ -266,6 +317,7 @@ function weaponRows(id, vehicleId) {
       ["维修时间", "15秒，禁止移动和攻击"],
       ["维修效果", "恢复全部生命值"],
     );
+  if (id === "armorPiercing") rows.push(["作用","下一发100mm炮弹变为单体穿甲弹"],["命中伤害","140 HP"],["对坦克加成","30%（182 HP）"]);
   if (id === "highExplosive")
     rows.push(
       ["作用", "下一发122mm炮弹变为高爆弹"],
@@ -294,6 +346,7 @@ function weaponRows(id, vehicleId) {
       ["弹道散布", "水平±2°、垂直±0.4°"],
       ["使用冷却", "40秒，独立于蚂蜂导弹待发弹"],
     );
+  if(id==='engineSmoke')rows.push(['覆盖范围','后方半径20m'],['持续时间','15秒'],['效果','阻挡普通目视侦察和直接视线锁定，已暴露标记按正常规则保留']);
   if (id === "observation")
     rows.push(
       ["扇形范围", `前方${w.sector}° / ${w.recon}m`],
@@ -379,15 +432,17 @@ function vehicleDetails(id) {
           "转向 / 加速",
           `${window.Blindfire.Motion.LABELS[v.turnRating]} / ${window.Blindfire.Motion.LABELS[v.accelerationRating]}`,
         ],
+        ...(v.totalLength ? [["车辆总长（含炮管）", `${v.totalLength} m`]] : []),
         ...(v.mass ? [["战斗全重", `${v.mass} t`]] : []),
         ...(v.enginePower ? [["发动机功率", `${v.enginePower} 马力`]] : []),
+        ...(v.turretRotationSpeed ? [["炮塔旋转速度", `${Math.round(v.turretRotationSpeed*180/Math.PI)}°/秒`]] : []),
         ...(v.dimensions.hullLength
           ? [["车体长度", `${v.dimensions.hullLength} m`]]
           : []),
         ...(v.turretYaw !== undefined || v.branch === "tank"
           ? [
               [
-                "炮塔水平转角",
+                v.id === "swift_falcon" ? "主炮水平射界" : "炮塔水平转角",
                 v.turretYaw !== undefined
                   ? `±${Math.round((v.turretYaw * 180) / Math.PI)}°`
                   : "360°",
@@ -494,6 +549,7 @@ function showModal(kind, html, handlers = {}) {
   renderer.hidePreview();
   modalKind = kind;
   $("modalCard").classList.toggle("tech-modal", kind === "techTree");
+  $("modalCard").classList.toggle("garage-modal",kind==="customize");
   $("modalCard").innerHTML = html;
   $("modal").classList.remove("hidden");
   for (const [id, fn] of Object.entries(handlers)) {
@@ -502,11 +558,13 @@ function showModal(kind, html, handlers = {}) {
   }
 }
 function closeModal() {
+  if(modalKind==="identity"&&!commander.data.name)return;
+  if(modalKind==="ranked"&&rankedLink&&!rankedMatch){const link=rankedLink;rankedLink=null;link.close();}
   elementCache.clear();
   renderer.hidePreview();
   $("modal").classList.add("hidden");
   $("modalCard").innerHTML = "";
-  $("modalCard").classList.remove("tech-modal");
+  $("modalCard").classList.remove("tech-modal","garage-modal");
   modalKind = null;
 }
 function setScreen(next) {
@@ -524,6 +582,8 @@ function sendNet(data) {
   } catch (_) {}
 }
 function dispatch(action, silent = false) {
+  if(rankLoading)return {ok:false};
+  if(rankedLink&&screen==="battle"){if(!view||view.over||(view.own.hp<=0&&!['respawn'].includes(action.type)))return {ok:false};rankedLink.send(action);return {ok:true};}
   if (!view || view.over || (paused && !netRole)) return { ok: false };
   if (tutorial && !tutorial.allow(action))
     return { ok: false, reason: "请先完成当前教学步骤" };
@@ -567,7 +627,11 @@ function select(k) {
   );
   updateHUD();
 }
-function startAI(seed, vehicleId = lineup.ids[0]) {
+function startAI(seed, vehicleId = lineup.ids[0], rankPractice=false, modeOverride=null) {
+  localRanked=rankPractice;rankedSummary="";
+  const needsInitialDeployment=rankPractice||modeOverride!==null;
+  const modeCfg=window.BlindfireCampaign.mode(modeOverride||campaignMode);
+  const selectedBattleMode=modeCfg.engine;
   respawnShownFor = null;
   spectating = false;
   document
@@ -580,18 +644,22 @@ function startAI(seed, vehicleId = lineup.ids[0]) {
   audio.reset();
   closeModal();
   engine = new (
-    battleMode === "breakthrough"
-      ? window.BlindfireBreakthrough.BreakthroughEngine
+    (selectedBattleMode === "breakthrough"||selectedBattleMode === "dark_forest"||rankPractice)
+      ? window.BlindfireArena.CombatArena
       : Engine
   )({
     mode: "ai",
-    battleMode,
+    teamSize:modeCfg.size,freeForAll:!!modeCfg.freeForAll,survival:modeCfg.id==="survival"||(rankPractice&&modeCfg.id==="duel"),
+    battleMode:selectedBattleMode,
     mapId: battleMap,
     difficulty,
     seed,
     lineup: [vehicleId, ...lineup.ids.filter((id) => id !== vehicleId)],
     vehicles: [vehicleId],
+    vehicleQueues: [[vehicleId, ...lineup.ids.filter(id => id !== vehicleId)]],
+    deploymentSlots: needsInitialDeployment ? [0] : [],
   });
+  if(rankPractice){const record=commander.record(campaignMode);engine.humanSlots=new Set([0]);for(const p of engine.players){if(selectedBattleMode==="breakthrough")p.respawns=0;if(p.id>0)p.botTuning=window.BlindfireBotBalance.tuning(window.BlindfireRanks.describe(record.points).index,record.lossStreak,(engine.random()-.5)*.08);}}
   renderer.landscapeMap = engine.mapId;
   renderer.landscapeSize = engine.fieldSize;
   renderer.createLandscape(true);
@@ -609,10 +677,13 @@ function startAI(seed, vehicleId = lineup.ids[0]) {
   toastUntil = 0;
   $("toast").classList.add("hidden");
   $("modeLabel").textContent =
-    `${battleMode === "breakthrough" ? "突破无人区 · 5v5" : battleMode === "dark_forest" ? "黑暗森林" : "1v1 对决"} / ${view.roomTier}级房 / ${difficultyNames[difficulty]}`;
+    `${modeCfg.name} · ${modeCfg.label} / ${view.roomTier}级房 / ${difficultyNames[difficulty]}`;
   setScreen("battle");
   select(selected);
   updateHUD();
+  const generatedNames=window.BlindfireBotNames.names(engine.players.length,()=>engine.random()).filter(n=>n!==commander.data.name);
+  const own=rankPractice?commander.record(campaignMode):commander.trainingRecord(campaignMode);combatRoster=engine.players.map((p,i)=>({...(i===0?own:{}),name:i===0?commander.data.name||'指挥官':generatedNames[i-1]||'远行的风',avatar:i===0?commander.data.avatar:i%8,team:p.team??i,matches:i===0?own.matches:24+i*17+window.BlindfireRanks.describe(own.points).index*11,kills:i===0?own.kills:30+i*21,deaths:i===0?own.deaths:17+i*13,points:i===0?own.points:Math.max(0,own.points+(i%3-1)*2)}));
+  paused=true;showRosterLoading(combatRoster,campaignMode,{onReady:()=>{if(screen==='battle'&&!netRole&&!modalKind){if(view?.own?.awaitingDeployment)showInitialDeployment();else{paused=false;lastFrame=performance.now();}}}});
 }
 function startTutorial() {
   disconnect(false);
@@ -690,6 +761,7 @@ $("tutorialNext").addEventListener("click", () => {
   }
 });
 function returnMenu() {
+  cancelRosterLoading();rankLoading=false;document.getElementById("killFeed").replaceChildren();
   spectating = false;
   if (view && !tutorial && view.started && roundReward === null)
     settleRound(view.outcome || "loss");
@@ -712,6 +784,7 @@ function returnMenu() {
   refreshMenu();
   respawnShownFor = null;
   walletUI();
+  localRanked=false;rankedSummary="";
 }
 function resetInput() {
   const captures = [
@@ -782,7 +855,9 @@ function stopFire(e) {
   $("fireButton").classList.remove("firing");
 }
 function settleRound(outcome) {
+  if(view?.battleMode==="dark_forest")outcome=view.placement===1?"win":"loss";
   if (engine && netRole !== "guest") view = engine.snapshot(0);
+  const firstSettlement=roundReward===null;
   if (roundReward === null)
     roundReward = tutorial
       ? tutorial.done
@@ -794,20 +869,24 @@ function settleRound(outcome) {
           stats: view.own.stats,
           contributions: view.own.rewardContributions,
         });
+  if(firstSettlement&&!tutorial&&window.BlindfireHonors.finish(profile.honors,outcome||"loss")){profile.save();honorUI.refresh();}
+  else if(firstSettlement&&!tutorial)profile.save();
+  if(firstSettlement&&!tutorial&&!rankedLink){const before=commander.record(campaignMode).points;commander.finish(campaignMode,roundKey,outcome||"loss",{...view.own.stats,dead:view.own.hp<=0,placement:view.over||view.own.hp<=0?view.placement:8},{ranked:localRanked});if(localRanked){const after=commander.record(campaignMode);rankedSummary="本机演练 · "+window.BlindfireRanks.describe(after.points).display+" · 本场 "+((after.points-before)/2)+" 星";}}
+  if(!tutorial&&(localRanked||rankedLink)&&view&&(view.over||view.own.hp<=0&&view.battleMode==="dark_forest"))profile.recordRankedDaily(roundKey);
   walletUI();
   return roundReward;
 }
 function result() {
   if (modalKind === "result" || !view) return;
   if (!netRole) paused = true;
-  const outcome = view.outcome,
-    title = { win: "交火胜利", loss: "发射车损失", draw: "本局平局" }[outcome],
+  const outcome = localRanked&&campaignMode==="survival"?window.BlindfireRanks.applyPlacement(commander.record(campaignMode).points,view.placement).outcome:view.outcome,
+    title = view.battleMode==="dark_forest"?(view.placement===1?"登顶 · 大吉大利":"本场第 "+view.placement+" 名"):{ win: "交火胜利", loss: "发射车损失", draw: "本局平局" }[outcome],
     s = view.own.stats,
     time = Math.round(Math.max(0, (view.own.eliminatedAt || view.t) - 3));
   settleRound(outcome);
   showModal(
     "result",
-    `<span class="eyebrow">AFTER ACTION / ${netRole ? "DUEL" : "SOLO"}</span><h3 class="result-heading ${outcome}">${title}</h3><p>${escape(view.reason)}</p>${view.battleMode === "dark_forest" ? `<p>排名：第 ${view.placement} 名 / 8</p>` : ""}<div class="balance-line" id="roundCoins">战币 +${roundReward} <b>余额 ${profile.coins}</b></div><p>${vehicleSpec(view.own.vehicleId).tier}级载具 · ${view.roomTier || 1}级房 · ${window.Blindfire.BRANCHES[vehicleSpec(view.own.vehicleId).branch]}研发点 +${profile.lastResearch}</p>${profile.saved ? "" : "<p>本机存储不可用，战币暂存至关闭游戏。</p>"}<div class="result-grid"><div><small>击毁载具</small><b>${s.kills || 0}<span>辆</span></b></div><div><small>造成伤害</small><b>${s.damage}<span>HP</span></b></div><div><small>剩余耐久</small><b>${view.own.hp}<span>HP</span></b></div><div><small>确认热源</small><b>${s.detections}<span>次</span></b></div><div><small>成功拦截</small><b>${s.intercepted}<span>次</span></b></div><div><small>装备发射</small><b>${s.launches}<span>次</span></b></div><div><small>交火时间</small><b>${time}<span>秒</span></b></div></div>${netRole ? "" : '<button id="again" class="btn">再次出战</button>'}${view.battleMode === "dark_forest" && !view.over ? '<button id="continueSpectating" class="btn secondary">继续观战</button>' : ""}<button id="backMenu" class="btn secondary">返回主菜单</button>`,
+    `<span class="eyebrow">AFTER ACTION / ${view.battleMode==="dark_forest"?"BATTLE ROYALE":netRole ? "DUEL" : "SOLO"}</span><h3 class="result-heading ${view.battleMode==="dark_forest"?(view.placement===1?"top-finish":"placement-finish"):outcome}">${title}</h3><p>${escape(view.reason)}</p>${rankedSummary ? `<p class="rank-result">${escape(rankedSummary)}</p>` : ""}${view.battleMode === "dark_forest" ? `<p>排名：第 ${view.placement} 名 / 8</p><p>${escape(window.BlindfireForestRecords.text(localRanked?commander.record("survival"):rankedLink?rankedRank:commander.trainingRecord("survival")))}</p>` : ""}<div class="balance-line" id="roundCoins">战币 +${roundReward} <b>余额 ${profile.coins}</b></div><p>${vehicleSpec(view.own.vehicleId).tier}级载具 · ${view.roomTier || 1}级房 · ${window.Blindfire.BRANCHES[vehicleSpec(view.own.vehicleId).branch]}研发点 +${profile.lastResearch}</p>${profile.saved ? "" : "<p>本机存储不可用，战币暂存至关闭游戏。</p>"}<div class="result-grid"><div><small>击毁载具</small><b>${s.kills || 0}<span>辆</span></b></div><div><small>造成伤害</small><b>${s.damage}<span>HP</span></b></div><div><small>剩余耐久</small><b>${view.own.hp}<span>HP</span></b></div><div><small>确认热源</small><b>${s.detections}<span>次</span></b></div><div><small>成功拦截</small><b>${s.intercepted}<span>次</span></b></div><div><small>装备发射</small><b>${s.launches}<span>次</span></b></div><div><small>交火时间</small><b>${time}<span>秒</span></b></div></div>${netRole ? "" : '<button id="again" class="btn">再次出战</button>'}${view.battleMode === "dark_forest" && !view.over ? '<button id="continueSpectating" class="btn secondary">继续观战</button>' : ""}<button id="backMenu" class="btn secondary">返回主菜单</button>`,
     {
       continueSpectating: () => {
         spectating = true;
@@ -825,6 +904,7 @@ function result() {
 }
 function updateHUD() {
   if (!view) return;
+  
   $("returnQueue").classList.toggle("hidden", view.own.hp > 0 || !!modalKind);
   const p = view.own,
     pilot = currentPilot(),
@@ -987,7 +1067,7 @@ function updateHUD() {
             ? p.missileReloadLeft > 0
               ? `装填 ${p.missileReloadLeft.toFixed(1)}s`
               : `${p.missileAmmo}/4`
-            : k === "highExplosive" && p.heArmed
+            : k === "armorPiercing" && p.apArmed ? "已装填" : k === "artillery" && p.apArmed ? "穿甲弹就绪" : k === "highExplosive" && p.heArmed
               ? "已装填"
               : k === "tankCannon" && p.heArmed
                 ? "高爆弹就绪"
@@ -1042,7 +1122,7 @@ function updateHUD() {
   fb.classList.toggle("firing", p.mg);
   fb.disabled = false;
   $("fireLabel").textContent =
-    selected === "spade" && !pilot
+    selected === "engineSmoke" && !pilot ? cd>0?`${cd.toFixed(1)}s`:"释放烟幕" : selected === "spade" && !pilot
       ? p.spadeDeployed
         ? "收起"
         : "展开"
@@ -1050,7 +1130,7 @@ function updateHUD() {
         ? `维修 ${p.repairLeft.toFixed(1)}s`
         : selected === "autocannon" && p.reloadLeft > 0
           ? `换弹 ${p.reloadLeft.toFixed(1)}s`
-          : selected === "highExplosive"
+          : selected === "armorPiercing" ? "下一发 · 单体140 / 对坦克182伤害" : selected === "highExplosive"
             ? p.heArmed
               ? "已装填"
               : "装填高爆"
@@ -1072,7 +1152,7 @@ function updateHUD() {
                       ? `${cd.toFixed(1)}s`
                       : "发射";
   $("fireSub").textContent =
-    selected === "spade" && !pilot
+    selected === "engineSmoke" && !pilot ? "后方半径20m / 持续15秒" : selected === "spade" && !pilot
       ? p.spadeDeployed
         ? "恢复机动"
         : "固定车体 / 缩短装填"
@@ -1100,7 +1180,7 @@ function updateHUD() {
                     ? "本局已使用"
                     : "停车维修15秒"
                   : selected === "observation"
-                    ? "前方90° / 500m"
+                    ? `前方${weaponSpec(p,"observation").sector}° / ${weaponSpec(p,"observation").recon}m`
                     : pilot
                       ? pilot.kind === "bomber"
                         ? "机腹炸弹分离"
@@ -1139,6 +1219,7 @@ function updateHUD() {
     highExplosive: "下一发炮弹变为高爆弹 · 冷却30秒",
     autocannon: "20mm机炮 · 按住连续射击 · 可移动开火",
     repair: "每局一次 · 原地维修15秒",
+    engineSmoke: "后方20米烟幕 · 持续15秒 · 冷却45秒",
     observation: "前方90°扇形侦察 · 持续8秒",
     reconPlane: "指定航向 · 高空直线侦察",
     bomber: "驾驶轰炸机 · 按发射投弹",
@@ -1230,6 +1311,9 @@ function showPause() {
   );
 }
 function disconnect(notify) {
+  if(rankedLink){cancelRosterLoading();rankLoading=false;}
+  if(rankedLink){const link=rankedLink;rankedLink=null;link.close();}
+  rankedMatch=null;
   const wasConnected = connected;
   connected = false;
   netRole = null;
@@ -1258,6 +1342,40 @@ function interrupted(message) {
     `<span class="eyebrow">LINK LOST</span><h3>交火中断</h3><p>${escape(message)}</p><p>请重新创建或加入房间。</p><button id="interruptedBack" class="btn">返回主菜单</button>`,
     { interruptedBack: returnMenu },
   );
+}
+function rankedMenu(){campaignUI.ranked();}
+function localRankedQueue(mode,vehicleIds){const ids=[...new Set(vehicleIds||lineup.ids)].filter(id=>profile.owned.includes(id)).slice(0,4);const vehicleId=ids[0]||lineup.ids[0];
+ const generation=++rankQueueGeneration,delay=15000+Math.floor(Math.random()*10001),began=performance.now();clearInterval(rankQueueTimer);
+ showModal('rankedQueue',`<h3>排位队列</h3><p>本机排位演练 · 未连接公网排位服务</p><p id="rankQueueStatus">正在准备队列 0秒</p><button id="cancelRankQueue" class="btn secondary">取消匹配</button>`,{cancelRankQueue:()=>{rankQueueGeneration++;clearInterval(rankQueueTimer);rankQueueTimer=null;closeModal();campaignUI.ranked();}});
+ rankQueueTimer=setInterval(()=>{if(generation!==rankQueueGeneration)return;const seconds=Math.floor((performance.now()-began)/1000);const el=$('rankQueueStatus');if(el)el.textContent='正在准备队列 '+seconds+'秒';if(performance.now()-began>=delay){clearInterval(rankQueueTimer);rankQueueTimer=null;if(modalKind!=='rankedQueue')return;const cfg=window.BlindfireCampaign.mode(mode);battleMode=cfg.engine;battleMap=Math.random()<.5?'hills':'city';difficulty='standard';closeModal();startAI(undefined,vehicleId,true,mode);}},200);
+}
+function startRankedMatch(mode="duel"){
+ campaignMode=mode;const modeCfg=window.BlindfireCampaign.mode(mode),vehicleIds=[...lineup.ids].filter(id=>profile.owned.includes(id)).slice(0,4),vehicleId=vehicleIds[0];
+ if(!profile.owned.includes(vehicleId)){toast("请选择已拥有的载具");return;}
+ if(!RANKED_ORIGIN&&!nativeRankedAvailable()){localRankedQueue(mode,vehicleIds);return;}
+ if(rankedLink)return;const button=$("startRankedMatch");button.disabled=true;$("rankNetwork").textContent="正在连接排位服务…";
+ const Link=RANKED_ORIGIN?RankedLink:TapRankedLink;
+ const link=new Link(r=>{
+  if(rankedLink!==link)return;
+  if(r.rank){rankedRank=r.rank;rankedRanks[mode]=r.rank;}
+  if(r.status==="queued"){if($("rankNetwork"))$("rankNetwork").textContent=`匹配中 ${Math.min(r.waiting||1,window.BlindfireCampaign.playerCount(modeCfg))}/${window.BlindfireCampaign.playerCount(modeCfg)}，正在匹配…`;return;}
+  if(r.status==="reconnecting"){toast(r.error);return;}
+  if(r.status==="error"){interrupted(r.error);return;}
+  if(!["battle","finished"].includes(r.status)||!r.view)return;
+  if(rankedMatch!==r.matchId){
+   rankedMatch=r.matchId;rankedSummary="";engine=null;tutorial=null;netRole="guest";transport="ranked";connected=true;paused=false;spectating=false;respawnShownFor=null;
+   audio.init();audio.reset();closeModal();beginRewardRound();roundKey="ranked-"+r.matchId;
+   battleMap=r.view.field.mapId;renderer.landscapeMap=battleMap;renderer.landscapeSize=r.view.field.width;renderer.createLandscape(true);renderer.cameraKey=null;resetInput();setScreen("battle");
+   combatRoster=r.roster||[];rankLoading=true;showRosterLoading(combatRoster,mode,{onReady:()=>{rankLoading=false;if(view?.own?.awaitingDeployment)showInitialDeployment();}});
+  }
+  if(modeCfg.freeForAll&&r.view.settled){r.view.outcome=r.result?.outcome||window.BlindfireRanks.applyPlacement(r.result?.before_points??r.rank?.points??0,r.view.placement).outcome;}
+  view=r.view;lastPeerAt=performance.now();selected=view.own.selected;
+  $("modeLabel").textContent=`${modeCfg.name} · ${modeCfg.label} · ${modeCfg.freeForAll?"独立作战":r.slot<modeCfg.size?"蓝方":"红方"} · ${rankedRank?.militaryRank||"列兵"}`;
+  if(r.status==="finished"&&!r.result){toast("正在保存排位结果…");return;}
+  if(r.result){const delta=(r.result.after_points-r.result.before_points)/2;rankedSummary=`${rankedRank.display} · 本场${delta>0?"+":""}${delta}星`;}
+  updateHUD();
+ },{mode,name:commander.data.name,avatar:commander.data.avatar,vehicleId,lineup:vehicleIds});rankedLink=link;
+ link.join().catch(e=>{if(rankedLink!==link)return;rankedLink=null;link.close();if($("rankNetwork"))$("rankNetwork").textContent=e.message;if(button)button.disabled=false;});
 }
 function lanMenu() {
   showModal(
@@ -1581,10 +1699,7 @@ $("openSettings").onclick = () =>
   settings.show(showModal, closeModal, () => {
     const wasBattle = screen === "battle";
     if (!wasBattle) {
-      const mode = battleMode;
-      battleMode = "duel";
-      startAI(421);
-      battleMode = mode;
+      startAI(421, lineup.ids[0], false, "duel");
     }
     paused = true;
     resetInput();
@@ -1602,11 +1717,15 @@ $("bomberThrottleInput").oninput = (e) =>
 refreshMenu();
 renderer.modelsPromise.then(refreshMenu);
 $("returnQueue").onclick = returnQueue;
-$("startAI").addEventListener("click", showDeployment);
+campaignUI=createCampaignUI({commander,showModal,closeModal,profile,onChange:()=>{walletUI();refreshMenu();},getVehicles:()=>profile.owned.map(id=>VEHICLES[id]),loadLeaderboard:async mode=>{if(!RANKED_ORIGIN&&tapLeaderboards.available())return tapLeaderboards.load(mode);if(!RANKED_ORIGIN){const record=commander.record(mode);return{local:true,rows:record.matches?[{...record,name:commander.data.name}]:[]};}const link=new RankedLink(()=>{},{mode,name:commander.data.name,avatar:commander.data.avatar});await link.connect();return link.request('leaderboard');},getRank:mode=>rankedRanks[mode]||(!RANKED_ORIGIN&&!nativeRankedAvailable()?{...commander.record(mode),...window.BlindfireRanks.describe(commander.record(mode).points),kdi:window.BlindfireCampaign.kdi(commander.record(mode))}:null),train:cfg=>{campaignMode=cfg.mode;battleMode=window.BlindfireCampaign.mode(cfg.mode).engine;difficulty=cfg.difficulty;battleMap=cfg.map;closeModal();startAI(undefined,lineup.ids[0],false,cfg.mode);},ranked:startRankedMatch});
+const customUI=createCustomizationUI({profile,showModal,closeModal,renderer,vehicles:VEHICLES,onChange:(selectedType)=>{if(selectedType)lineup.first(selectedType);walletUI();refreshMenu();}});
+queueMicrotask(()=>campaignUI.ensureIdentity());
+$("startAI").addEventListener("click",()=>campaignUI.enter());
 $("openWarehouse").addEventListener("click", warehouse);
 $("openResearch").addEventListener("click", techTree);
 walletUI();
 $("openLAN").addEventListener("click", lanMenu);
+$("openRanked").addEventListener("click", rankedMenu);
 $("openGuide").addEventListener("click", () => guide());
 $("pauseButton").addEventListener("click", showPause);
 weaponButtons.forEach((b) =>
@@ -1713,6 +1832,12 @@ $("world").addEventListener(
   },
   { passive: false },
 );
+// Hangar orbit controls: the open vehicle area receives gestures through the HUD.
+const hangarPointers=new Map(),hangarCanvas=$("world");
+hangarCanvas.addEventListener('pointerdown',e=>{if(screen!=='menu'||modalKind)return;e.preventDefault();hangarCanvas.setPointerCapture?.(e.pointerId);hangarPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});});
+hangarCanvas.addEventListener('pointermove',e=>{const prev=hangarPointers.get(e.pointerId);if(!prev||screen!=='menu'||modalKind)return;e.preventDefault();const other=[...hangarPointers.entries()].find(([id])=>id!==e.pointerId)?.[1];if(other){const a=Math.hypot(prev.x-other.x,prev.y-other.y),b=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(b>5)renderer.menuZoom=Math.max(.3,Math.min(2,(renderer.menuZoom||1)*a/b));}else{renderer.menuYaw=(renderer.menuYaw??Math.PI/4)+(e.clientX-prev.x)*.012;renderer.menuPitch=Math.max(.08,Math.min(1.1,(renderer.menuPitch??.35)+(e.clientY-prev.y)*.007));}hangarPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});});
+for(const event of['pointerup','pointercancel','lostpointercapture'])hangarCanvas.addEventListener(event,e=>hangarPointers.delete(e.pointerId));
+hangarCanvas.addEventListener('wheel',e=>{if(screen!=='menu'||modalKind)return;e.preventDefault();renderer.menuZoom=Math.max(.3,Math.min(2,(renderer.menuZoom||1)*Math.exp(e.deltaY*.001)));},{passive:false});
 $("world").addEventListener("pointerdown", (e) => {
   if (mapAim && screen === "battle" && !modalKind) {
     e.preventDefault();
@@ -1814,6 +1939,8 @@ window.addEventListener("keyup", (e) => {
 });
 window.showPause = showPause;
 window.onNativeBack = function () {
+  if(!commander.data.name){campaignUI.ensureIdentity();return;}
+  if(modalKind==="rankedQueue"){rankQueueGeneration++;clearInterval(rankQueueTimer);rankQueueTimer=null;closeModal();return;}
   if (settings.stopEdit) {
     settings.stopEdit();
     returnMenu();
@@ -1864,6 +1991,10 @@ document.addEventListener("visibilitychange", () => {
 function frame(now) {
   const elapsed = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
+  if(window.BlindfireHonors.canCount(view,screen,paused,modalKind,tutorial,document.hidden,now-lastHonorInput)){
+   const unlocked=window.BlindfireHonors.tick(profile.honors,elapsed,roundKey,view.own.stats);
+   if(unlocked||now-lastHonorSave>10000){profile.save();lastHonorSave=now;honorUI.refresh();}
+  }
   if (screen === "battle") {
     if (view && (aimTarget || now - lastInput > 50)) {
       lastInput = now;
@@ -1883,7 +2014,7 @@ function frame(now) {
       lastSend = now;
       sendNet({ type: "state", view: engine.snapshot(1) });
     }
-    if (view) renderer.draw(view, now / 1000, elapsed);
+    if (view){renderer.draw(view, now / 1000, elapsed);drawKillFeed(view,combatRoster);}
     if (now - lastHud > 90) {
       lastHud = now;
       updateHUD();
@@ -1907,7 +2038,7 @@ function frame(now) {
     toastUntil = 0;
   }
   $("damageFlash").classList.toggle("active", now < damageUntil);
-  if (netRole === "guest" && connected && now - lastPeerAt > 12000) {
+  if (netRole === "guest" && connected && now - lastPeerAt > (rankedLink?25000:12000)) {
     disconnect(false);
     interrupted("对方长时间未响应，请重新连接。");
   }
