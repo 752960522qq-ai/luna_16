@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),B=require('../app/src/main/assets/engine.js'),{Progress}=require('../app/src/main/assets/progress.js'),{Tutorial}=require('../app/src/main/assets/tutorial.js');
 const storage={v:null,getItem(){return this.v},setItem(k,v){this.v=v}},p=new Progress(storage);
-assert.equal(p.purchase('longnose_artillery'),false);p.coins=5000;p.research.artillery=2500;assert.ok(p.researchVehicle('longnose_artillery'));assert.equal(p.purchase('longnose_artillery'),true);assert.equal(p.coins,0);assert.equal(p.purchase('longnose_artillery'),false);p.equip('longnose_artillery');assert.equal(new Progress(storage).selected,'longnose_artillery');
+assert.equal(p.purchase('longnose_artillery'),false);p.coins=5000;p.research.artillery=B.VEHICLES.longnose_artillery.researchCost;assert.ok(p.researchVehicle('longnose_artillery'));assert.equal(p.purchase('longnose_artillery'),true);assert.equal(p.coins,0);assert.equal(p.purchase('longnose_artillery'),false);p.equip('longnose_artillery');assert.equal(new Progress(storage).selected,'longnose_artillery');
 assert.equal(p.completeTutorial(),100);assert.equal(p.completeTutorial(),0);assert.equal(new Progress(storage).completeTutorial(),0);
 const tick=(e,t)=>{for(let i=0;i<t*120;i++)e.update(1/120);};
 let e=new B.Engine({mode:'lan',countdown:0,vehicles:['longnose_artillery','handlv_missile']});
