@@ -630,9 +630,13 @@ export class Renderer {
         (await loader.loadAsync("models/humber_fv.glb")).scene,
       );
     }
-    const crimson=articulateCrimson((await loader.loadAsync('models/crimson_steel.glb')).scene);
+    let crimson;
+    try{crimson=articulateCrimson((await loader.loadAsync('models/crimson_steel.glb')).scene);}
+    catch(_){crimson=this.cloneVehicle(this.vehicleModels[0].warhorse);}
     this.vehicleModels[0].crimson_steel=crimson;this.vehicleModels[1].crimson_steel=this.cloneVehicle(crimson);
-    const falcon=articulateFalcon((await loader.loadAsync("models/su100p.glb")).scene);
+    let falcon;
+    try{falcon=articulateFalcon((await loader.loadAsync("models/su100p.glb")).scene);}
+    catch(_){falcon=this.cloneVehicle(this.vehicleModels[0].cougar_artillery);}
     this.vehicleModels[0].swift_falcon=falcon;this.vehicleModels[1].swift_falcon=this.cloneVehicle(falcon);
     for (const models of this.vehicleModels)
       for (const id of [
